@@ -58,6 +58,8 @@ func (a *App) Run(ctx context.Context, args []string) int {
 		return a.runPC(ctx, args[1:])
 	case "nosana":
 		return a.runNosana(ctx, args[1:])
+	case "hub":
+		return a.runHub(ctx, args[1:])
 	case "setup":
 		return a.runSetup(ctx, args[1:])
 	case "doctor":
@@ -82,6 +84,7 @@ func (a *App) printHelp() {
 	fmt.Fprintln(a.out, "  gridlens pc add NAME --address IP [--ssh user@host] [--container NAME] [--pattern GLOB]")
 	fmt.Fprintln(a.out, "  gridlens pc list [--json]")
 	fmt.Fprintln(a.out, "  gridlens nosana detect [--json]")
+	fmt.Fprintln(a.out, "  gridlens hub start [--addr 127.0.0.1:8787]")
 	fmt.Fprintln(a.out, "  gridlens setup wireguard --dry-run [--json]")
 	fmt.Fprintln(a.out, "  gridlens doctor wireguard [--json]")
 }
