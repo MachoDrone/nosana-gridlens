@@ -21,16 +21,18 @@ import (
 var staticFiles embed.FS
 
 type Server struct {
-	runner     execx.Runner
-	now        func() time.Time
-	configPath string
+	runner       execx.Runner
+	now          func() time.Time
+	configPath   string
+	trafficMeter *trafficMeter
 }
 
 func NewServer(runner execx.Runner, now func() time.Time, configPath string) *Server {
 	return &Server{
-		runner:     runner,
-		now:        now,
-		configPath: configPath,
+		runner:       runner,
+		now:          now,
+		configPath:   configPath,
+		trafficMeter: newTrafficMeter(time.Minute),
 	}
 }
 
@@ -216,13 +218,16 @@ func (s *Server) handleNosana(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 
+	now := s.now().UTC()
 	report := nosana.Detect(ctx, s.runner, cfg, nosana.Options{
 		ConfigPath:           path,
 		IncludeNested:        true,
-		Now:                  s.now(),
+		Now:                  now,
 		MaxConcurrentTargets: 32,
 		MaxConcurrentNested:  8,
 	})
+	s.trafficMeter.Add(now, report.CollectionTraffic)
+	report.Summary.GridLensTraffic = s.trafficMeter.Snapshot(now)
 	writeJSON(w, http.StatusOK, report)
 }
 
@@ -253,6 +258,7 @@ func (s *Server) handlePCScan(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var results []network.HostScan
+	var traffic network.TrafficUsage
 	for _, cidr := range cidrs {
 		scanResults, err := network.ScanCIDR(ctx, network.ScanOptions{
 			CIDR:        cidr,
@@ -265,14 +271,23 @@ func (s *Server) handlePCScan(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
+		scanTraffic, err := network.EstimateScanTraffic(cidr, ports, 1024, scanResults)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		traffic = traffic.Add(scanTraffic)
 		results = append(results, scanResults...)
 	}
+	now := s.now().UTC()
+	s.trafficMeter.Add(now, traffic)
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"generatedAt": s.now().UTC(),
+		"generatedAt": now,
 		"cidrs":       cidrs,
 		"ports":       ports,
 		"results":     results,
+		"traffic":     traffic,
 	})
 }
 
