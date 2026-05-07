@@ -2,6 +2,7 @@ package nosana
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -124,5 +125,39 @@ func TestConfiguredPCWithoutSSHIsSkipped(t *testing.T) {
 	}
 	if !report.Targets[1].Skipped {
 		t.Fatalf("expected configured PC without ssh target to be skipped: %+v", report.Targets[1])
+	}
+}
+
+func TestDetectScalesToTwoHundredConfiguredHosts(t *testing.T) {
+	runner := execx.NewFakeRunner()
+	runner.SetPath("ssh", "/usr/bin/ssh")
+
+	cfg := config.Default()
+	for i := 1; i <= 200; i++ {
+		address := fmt.Sprintf("192.168.10.%d", i)
+		if err := cfg.AddOrUpdatePC(config.PC{
+			Name:      fmt.Sprintf("pc-%03d", i),
+			Address:   address,
+			SSHTarget: "grid@" + address,
+			Runtimes:  []string{"docker"},
+		}); err != nil {
+			t.Fatalf("AddOrUpdatePC returned error: %v", err)
+		}
+		runner.SetResult("ssh", []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "grid@" + address, "docker ps --format '{{json .}}'"}, execx.Result{
+			ExitCode: 0,
+			Stdout:   fmt.Sprintf(`{"ID":"%03d","Names":"nosana-node","Image":"nosana/node","Status":"Up"}`, i),
+		})
+	}
+
+	report := Detect(context.Background(), runner, cfg, Options{
+		Now:                  time.Unix(0, 0),
+		MaxConcurrentTargets: 32,
+	})
+
+	if report.Summary.TargetsScanned != 201 {
+		t.Fatalf("expected local plus 200 configured targets, got %+v", report.Summary)
+	}
+	if report.Summary.NosanaHosts != 200 || report.Summary.NosanaMatches != 200 {
+		t.Fatalf("expected 200 Nosana hosts, got %+v", report.Summary)
 	}
 }

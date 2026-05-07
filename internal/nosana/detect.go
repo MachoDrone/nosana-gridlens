@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MachoDrone/nosana-gridlens/internal/config"
@@ -21,6 +22,7 @@ type Summary struct {
 	TargetsScanned    int `json:"targetsScanned"`
 	RuntimesAvailable int `json:"runtimesAvailable"`
 	ContainersSeen    int `json:"containersSeen"`
+	NosanaHosts       int `json:"nosanaHosts"`
 	NosanaMatches     int `json:"nosanaMatches"`
 }
 
@@ -43,9 +45,11 @@ type RuntimeReport struct {
 }
 
 type Options struct {
-	ConfigPath    string
-	IncludeNested bool
-	Now           time.Time
+	ConfigPath           string
+	IncludeNested        bool
+	Now                  time.Time
+	MaxConcurrentTargets int
+	MaxConcurrentNested  int
 }
 
 func Detect(ctx context.Context, runner execx.Runner, cfg config.Config, opts Options) Report {
@@ -55,13 +59,35 @@ func Detect(ctx context.Context, runner execx.Runner, cfg config.Config, opts Op
 		ConfigPath:  opts.ConfigPath,
 	}
 
+	maxTargets := opts.MaxConcurrentTargets
+	if maxTargets <= 0 {
+		maxTargets = 32
+	}
+
 	localMatcher := Matcher{Patterns: cfg.DefaultContainerPatterns}
 	local := detectLocal(ctx, runner, localMatcher, opts.IncludeNested)
-	report.Targets = append(report.Targets, local)
+	report.Targets = make([]TargetReport, len(cfg.PCs)+1)
+	report.Targets[0] = local
 
-	for _, pc := range cfg.PCs {
-		report.Targets = append(report.Targets, detectPC(ctx, runner, pc, cfg.DefaultContainerPatterns, opts.IncludeNested))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxTargets)
+	for i, pc := range cfg.PCs {
+		i := i
+		pc := pc
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				report.Targets[i+1] = cancelledTarget(pc)
+				return
+			}
+			report.Targets[i+1] = detectPC(ctx, runner, pc, cfg.DefaultContainerPatterns, opts.IncludeNested, opts.MaxConcurrentNested)
+		}()
 	}
+	wg.Wait()
 
 	report.Summary = summarize(report.Targets)
 	return report
@@ -74,7 +100,7 @@ func detectLocal(ctx context.Context, runner execx.Runner, matcher Matcher, incl
 	return target
 }
 
-func detectPC(ctx context.Context, runner execx.Runner, pc config.PC, defaults []string, includeNested bool) TargetReport {
+func detectPC(ctx context.Context, runner execx.Runner, pc config.PC, defaults []string, includeNested bool, maxNested int) TargetReport {
 	target := TargetReport{
 		Name:      pc.Name,
 		Scope:     "configured",
@@ -98,9 +124,20 @@ func detectPC(ctx context.Context, runner execx.Runner, pc config.PC, defaults [
 		Patterns:   append(append([]string{}, defaults...), pc.ContainerPatterns...),
 	}
 	for _, runtimeName := range runtimesForPC(pc) {
-		target.Runtimes = append(target.Runtimes, detectRemoteRuntime(ctx, runner, pc.SSHTarget, runtimeName, matcher, includeNested))
+		target.Runtimes = append(target.Runtimes, detectRemoteRuntime(ctx, runner, pc.SSHTarget, runtimeName, matcher, includeNested, maxNested))
 	}
 	return target
+}
+
+func cancelledTarget(pc config.PC) TargetReport {
+	return TargetReport{
+		Name:       pc.Name,
+		Scope:      "configured",
+		Address:    pc.Address,
+		SSHTarget:  pc.SSHTarget,
+		Skipped:    true,
+		SkipReason: "discovery cancelled",
+	}
 }
 
 func runtimesForPC(pc config.PC) []string {
@@ -162,7 +199,7 @@ func detectLocalRuntime(ctx context.Context, runner execx.Runner, runtimeName st
 	return report
 }
 
-func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget string, runtimeName string, matcher Matcher, includeNested bool) RuntimeReport {
+func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget string, runtimeName string, matcher Matcher, includeNested bool, maxNested int) RuntimeReport {
 	remoteCommand := remoteRuntimeCommand(runtimeName)
 	if remoteCommand == "" {
 		return RuntimeReport{Type: runtimeName, Available: false, Error: "unsupported runtime"}
@@ -184,7 +221,7 @@ func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget str
 	}
 
 	if runtimeName == "docker" && includeNested {
-		addRemoteNestedPodman(ctx, runner, sshTarget, containers, matcher)
+		addRemoteNestedPodman(ctx, runner, sshTarget, containers, matcher, maxNested)
 		demoteRuntimeWrappers(containers)
 	}
 	report.Containers = containers
@@ -229,22 +266,39 @@ func addNestedPodman(ctx context.Context, runner execx.Runner, source string, co
 	}
 }
 
-func addRemoteNestedPodman(ctx context.Context, runner execx.Runner, sshTarget string, containers []Container, matcher Matcher) {
+func addRemoteNestedPodman(ctx context.Context, runner execx.Runner, sshTarget string, containers []Container, matcher Matcher, maxNested int) {
+	if maxNested <= 0 {
+		maxNested = 8
+	}
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxNested)
 	for i := range containers {
 		if containers[i].ID == "" {
 			continue
 		}
-		remoteCommand := fmt.Sprintf("docker exec %s sh -lc 'command -v podman >/dev/null 2>&1 && podman ps --format json || true'", containers[i].ID)
-		args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, remoteCommand}
-		result := runner.Run(ctx, "ssh", args...)
-		if !result.OK() || strings.TrimSpace(result.Stdout) == "" {
-			continue
-		}
-		nested, err := ParsePodmanPSJSON(sshTarget+" nested in "+containers[i].Name, result.Stdout, matcher)
-		if err == nil {
-			containers[i].Nested = nested
-		}
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			remoteCommand := fmt.Sprintf("docker exec %s sh -lc 'command -v podman >/dev/null 2>&1 && podman ps --format json || true'", containers[i].ID)
+			args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, remoteCommand}
+			result := runner.Run(ctx, "ssh", args...)
+			if !result.OK() || strings.TrimSpace(result.Stdout) == "" {
+				return
+			}
+			nested, err := ParsePodmanPSJSON(sshTarget+" nested in "+containers[i].Name, result.Stdout, matcher)
+			if err == nil {
+				containers[i].Nested = nested
+			}
+		}()
 	}
+	wg.Wait()
 }
 
 func demoteRuntimeWrappers(containers []Container) {
@@ -291,6 +345,7 @@ func summarize(targets []TargetReport) Summary {
 func addContainerSummary(summary *Summary, container Container) {
 	summary.ContainersSeen++
 	if container.Matched {
+		summary.NosanaHosts++
 		summary.NosanaMatches++
 	}
 	for _, nested := range container.Nested {

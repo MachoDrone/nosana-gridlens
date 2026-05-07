@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 type FakeRunner struct {
+	mu       sync.Mutex
 	Paths    map[string]string
 	Results  map[string]Result
 	Commands []Command
@@ -20,14 +22,20 @@ func NewFakeRunner() *FakeRunner {
 }
 
 func (f *FakeRunner) SetPath(name string, path string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Paths[name] = path
 }
 
 func (f *FakeRunner) SetResult(name string, args []string, result Result) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Results[f.key(name, args)] = result
 }
 
 func (f *FakeRunner) LookPath(file string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	path, ok := f.Paths[file]
 	if !ok {
 		return "", fmt.Errorf("%s: command not found", file)
@@ -37,6 +45,9 @@ func (f *FakeRunner) LookPath(file string) (string, error) {
 
 func (f *FakeRunner) Run(_ context.Context, name string, args ...string) Result {
 	copiedArgs := append([]string(nil), args...)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Commands = append(f.Commands, Command{Name: name, Args: copiedArgs})
 
 	result, ok := f.Results[f.key(name, args)]

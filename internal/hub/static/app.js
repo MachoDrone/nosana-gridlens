@@ -56,7 +56,8 @@ async function refresh() {
     const report = await getJSON("/api/nosana");
     state.lastReport = report;
     renderReport(report);
-    setPill(els.discoveryState, report.summary.nosanaMatches > 0 ? "Live" : "No hosts", report.summary.nosanaMatches > 0 ? "ok" : "warn");
+    const hostCount = report.summary.nosanaHosts ?? report.summary.nosanaMatches ?? 0;
+    setPill(els.discoveryState, hostCount > 0 ? "Live" : "No hosts", hostCount > 0 ? "ok" : "warn");
   } catch (error) {
     els.targets.innerHTML = `<div class="error-text">${escapeHTML(error.message)}</div>`;
     setPill(els.discoveryState, "Error", "error");
@@ -171,7 +172,7 @@ function renderConfig(response) {
 
 function renderReport(report) {
   const summary = report.summary || {};
-  els.nosanaMatches.textContent = summary.nosanaMatches ?? 0;
+  els.nosanaMatches.textContent = summary.nosanaHosts ?? summary.nosanaMatches ?? 0;
   els.containersSeen.textContent = summary.containersSeen ?? 0;
   els.runtimesAvailable.textContent = summary.runtimesAvailable ?? 0;
   els.targetsScanned.textContent = summary.targetsScanned ?? 0;
