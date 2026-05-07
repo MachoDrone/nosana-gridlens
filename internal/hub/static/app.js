@@ -1,17 +1,29 @@
 const state = {
-  loading: false,
+  monitorLoading: false,
+  fleetLoading: false,
   scanning: false,
   savingConfig: false,
   lastReport: null,
   config: null,
   targetSort: storageGet("gridlens.targetSort") || "ip",
+  activeView: initialView(),
   theme: storageGet("gridlens.theme") || "dark",
   localPCExpanded: storageGet("gridlens.localPCExpanded") === "true",
+  monitorTimer: null,
+  fleetTimer: null,
+  fleetRows: [],
+  fleetSort: storageGet("gridlens.fleetSort") || "pc",
+  fleetSortDirection: storageGet("gridlens.fleetSortDirection") || "asc",
+  fleetIPMode: storageGet("gridlens.fleetIPMode") || "compact",
 };
 
 const els = {
   updatedAt: document.querySelector("#updatedAt"),
   hubIdentity: document.querySelector("#hubIdentity"),
+  monitorViewBtn: document.querySelector("#monitorViewBtn"),
+  fleetViewBtn: document.querySelector("#fleetViewBtn"),
+  monitorView: document.querySelector("#monitorView"),
+  fleetView: document.querySelector("#fleetView"),
   themeBtn: document.querySelector("#themeBtn"),
   refreshBtn: document.querySelector("#refreshBtn"),
   scanBtn: document.querySelector("#scanBtn"),
@@ -42,29 +54,98 @@ const els = {
   containersSeen: document.querySelector("#containersSeen"),
   pcCount: document.querySelector("#pcCount"),
   gridLensTraffic: document.querySelector("#gridLensTraffic"),
+  fleetHostCount: document.querySelector("#fleetHostCount"),
+  fleetUpdatedAt: document.querySelector("#fleetUpdatedAt"),
+  fleetState: document.querySelector("#fleetState"),
+  fleetTableHead: document.querySelector("#fleetTableHead"),
+  fleetRows: document.querySelector("#fleetRows"),
+  fleetIPCompactBtn: document.querySelector("#fleetIPCompactBtn"),
+  fleetIPFullBtn: document.querySelector("#fleetIPFullBtn"),
 };
 
+els.monitorViewBtn.addEventListener("click", () => activateView("monitor"));
+els.fleetViewBtn.addEventListener("click", () => activateView("fleet"));
 els.themeBtn.addEventListener("click", () => toggleTheme());
-els.refreshBtn.addEventListener("click", () => refresh());
+els.refreshBtn.addEventListener("click", () => refreshActiveView());
 els.scanBtn.addEventListener("click", () => scanLAN());
 els.configBtn.addEventListener("click", () => openConfig());
 els.sortNameBtn.addEventListener("click", () => setTargetSort("name"));
 els.sortIPBtn.addEventListener("click", () => setTargetSort("ip"));
 els.targets.addEventListener("toggle", persistLocalExpanded, true);
+els.fleetTableHead.addEventListener("click", (event) => {
+  const header = event.target.closest("th[data-col]");
+  if (header) setFleetSort(header.dataset.col, header.dataset.type || "string");
+});
+els.fleetIPCompactBtn.addEventListener("click", () => setFleetIPMode("compact"));
+els.fleetIPFullBtn.addEventListener("click", () => setFleetIPMode("full"));
 els.closeConfigBtn.addEventListener("click", () => els.configDialog.close());
 els.configForm.addEventListener("submit", (event) => {
   event.preventDefault();
   saveBulkConfig();
 });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopPolling();
+    return;
+  }
+  activateView(state.activeView);
+});
+window.addEventListener("hashchange", () => activateView(initialView()));
 
 applyTheme(state.theme);
-refresh();
 updateSortButtons();
-setInterval(refresh, 10000);
+updateFleetIPButtons();
+activateView(state.activeView);
+
+function activateView(view) {
+  state.activeView = view === "fleet" ? "fleet" : "monitor";
+  storageSet("gridlens.activeView", state.activeView);
+  const nextHash = `#${state.activeView}`;
+  if (location.hash !== nextHash) {
+    history.replaceState(null, "", nextHash);
+  }
+
+  els.monitorView.hidden = state.activeView !== "monitor";
+  els.fleetView.hidden = state.activeView !== "fleet";
+  els.monitorViewBtn.classList.toggle("active", state.activeView === "monitor");
+  els.fleetViewBtn.classList.toggle("active", state.activeView === "fleet");
+  els.scanBtn.hidden = state.activeView !== "monitor";
+
+  stopPolling();
+  if (state.activeView === "monitor") {
+    refresh();
+    state.monitorTimer = setInterval(refresh, 10000);
+  } else {
+    refreshFleet();
+    state.fleetTimer = setInterval(refreshFleet, 15000);
+  }
+}
+
+function stopPolling() {
+  if (state.monitorTimer) clearInterval(state.monitorTimer);
+  if (state.fleetTimer) clearInterval(state.fleetTimer);
+  state.monitorTimer = null;
+  state.fleetTimer = null;
+}
+
+function refreshActiveView() {
+  if (state.activeView === "fleet") {
+    refreshFleet();
+    return;
+  }
+  refresh();
+}
+
+function initialView() {
+  const hashView = location.hash.replace("#", "").trim();
+  if (hashView === "fleet" || hashView === "monitor") return hashView;
+  return storageGet("gridlens.activeView") || "monitor";
+}
 
 async function refresh() {
-  if (state.loading) return;
-  state.loading = true;
+  if (state.activeView !== "monitor") return;
+  if (state.monitorLoading) return;
+  state.monitorLoading = true;
   els.refreshBtn.disabled = true;
   setPill(els.discoveryState, "Loading", "");
 
@@ -78,12 +159,35 @@ async function refresh() {
     els.targets.innerHTML = `<div class="error-text">${escapeHTML(error.message)}</div>`;
     setPill(els.discoveryState, "Error", "error");
   } finally {
-    state.loading = false;
+    state.monitorLoading = false;
+    els.refreshBtn.disabled = false;
+  }
+}
+
+async function refreshFleet() {
+  if (state.activeView !== "fleet") return;
+  if (state.fleetLoading) return;
+  state.fleetLoading = true;
+  els.refreshBtn.disabled = true;
+  setPill(els.fleetState, "Loading", "");
+
+  try {
+    const report = await getJSON("/api/nosana");
+    state.lastReport = report;
+    renderFleet(report);
+    const hostCount = state.fleetRows.length;
+    setPill(els.fleetState, hostCount > 0 ? "Live" : "No hosts", hostCount > 0 ? "ok" : "warn");
+  } catch (error) {
+    els.fleetRows.innerHTML = `<tr><td colspan="11"><div class="error-text">${escapeHTML(error.message)}</div></td></tr>`;
+    setPill(els.fleetState, "Error", "error");
+  } finally {
+    state.fleetLoading = false;
     els.refreshBtn.disabled = false;
   }
 }
 
 async function scanLAN() {
+  if (state.activeView !== "monitor") return;
   if (state.scanning) return;
   state.scanning = true;
   els.scanBtn.disabled = true;
@@ -204,6 +308,83 @@ function renderReport(report) {
   els.targets.innerHTML = targets.map(renderTarget).join("");
 }
 
+function renderFleet(report) {
+  state.fleetRows = collectFleetRows(report);
+  const rows = sortedFleetRows();
+  const hostText = `${rows.length} host${rows.length === 1 ? "" : "s"}`;
+  els.fleetHostCount.textContent = hostText;
+  els.fleetUpdatedAt.textContent = `Updated ${formatTime(report.generatedAt)} | ${hubIdentityText(report.hub)}`;
+  document.body.classList.toggle("fleet-ip-full", state.fleetIPMode === "full");
+  updateFleetIPButtons();
+  updateFleetSortHeaders();
+
+  if (!rows.length) {
+    els.fleetRows.innerHTML = `<tr><td colspan="11"><div class="empty">No Nosana hosts discovered.</div></td></tr>`;
+    return;
+  }
+
+  els.fleetRows.innerHTML = rows.map(renderFleetRow).join("");
+}
+
+function collectFleetRows(report) {
+  const rows = [];
+  for (const target of report.targets || []) {
+    for (const runtime of visibleRuntimeReports(target)) {
+      for (const container of runtime.containers || []) {
+        collectFleetRowsFromContainer(rows, report, target, runtime, container, runtime.type, "");
+      }
+    }
+  }
+  return rows;
+}
+
+function collectFleetRowsFromContainer(rows, report, target, runtime, container, runtimePath, parentName) {
+  if (container.matched) {
+    const running = containerIsRunning(container);
+    rows.push({
+      heartbeat: 0,
+      status: running ? "live" : "check",
+      pc: targetDisplayName(target),
+      ip: target.address || "",
+      host: container.name || container.id || "",
+      runtime: runtimePath,
+      state: container.status || "",
+      image: container.image || "",
+      node: imageTag(container.image),
+      id: shortID(container.id),
+      source: sourceLabel(container.source, parentName),
+      running,
+      generatedAt: report.generatedAt,
+    });
+  }
+  for (const nested of container.nested || []) {
+    collectFleetRowsFromContainer(rows, report, target, runtime, nested, `${runtimePath}/podman`, container.name || container.id || parentName);
+  }
+}
+
+function renderFleetRow(row) {
+  const statusClass = row.running ? "ok" : "warn";
+  const statusText = row.running ? "live" : "check";
+  return `
+    <tr>
+      <td class="seen" data-sort="${row.heartbeat}">${escapeHTML(fleetHeartbeat(row.generatedAt))}</td>
+      <td><span class="fleet-status ${statusClass}">${escapeHTML(statusText)}</span></td>
+      <td class="host">${escapeHTML(row.pc)}</td>
+      <td class="ip">
+        <span class="ip-m-compact">${escapeHTML(compactIP(row.ip))}</span>
+        <span class="ip-m-full">${escapeHTML(row.ip)}</span>
+      </td>
+      <td class="node-addr">${escapeHTML(row.host)}</td>
+      <td class="fleet-muted">${escapeHTML(row.runtime)}</td>
+      <td class="fleet-muted">${escapeHTML(row.state)}</td>
+      <td class="fleet-muted">${escapeHTML(row.image)}</td>
+      <td class="ver">${escapeHTML(row.node)}</td>
+      <td class="fleet-muted">${escapeHTML(row.id)}</td>
+      <td class="fleet-muted">${escapeHTML(row.source)}</td>
+    </tr>
+  `;
+}
+
 function renderTarget(target) {
   const hostCount = countHostContainers(target);
   if (target.scope === "local" && hostCount === 0) {
@@ -316,6 +497,64 @@ function setTargetSort(sort) {
   if (state.lastReport) renderReport(state.lastReport);
 }
 
+function setFleetSort(column, type) {
+  if (state.fleetSort === column) {
+    state.fleetSortDirection = state.fleetSortDirection === "asc" ? "desc" : "asc";
+  } else {
+    state.fleetSort = column;
+    state.fleetSortDirection = type === "num" ? "desc" : "asc";
+  }
+  storageSet("gridlens.fleetSort", state.fleetSort);
+  storageSet("gridlens.fleetSortDirection", state.fleetSortDirection);
+  updateFleetSortHeaders();
+  els.fleetRows.innerHTML = sortedFleetRows().map(renderFleetRow).join("");
+}
+
+function sortedFleetRows() {
+  const rows = [...state.fleetRows];
+  rows.sort((a, b) => {
+    const left = fleetSortValue(a, state.fleetSort);
+    const right = fleetSortValue(b, state.fleetSort);
+    let result;
+    if (typeof left === "number" && typeof right === "number") {
+      result = left - right;
+    } else {
+      result = String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
+    }
+    if (result === 0) {
+      result = String(a.pc).localeCompare(String(b.pc), undefined, { numeric: true, sensitivity: "base" }) ||
+        String(a.host).localeCompare(String(b.host), undefined, { numeric: true, sensitivity: "base" });
+    }
+    return state.fleetSortDirection === "desc" ? -result : result;
+  });
+  return rows;
+}
+
+function fleetSortValue(row, column) {
+  if (column === "heartbeat") return row.heartbeat;
+  return row[column] || "";
+}
+
+function updateFleetSortHeaders() {
+  for (const header of els.fleetTableHead.querySelectorAll("th[data-col]")) {
+    const active = header.dataset.col === state.fleetSort;
+    header.classList.toggle("active", active);
+    header.dataset.direction = active ? state.fleetSortDirection : "";
+  }
+}
+
+function setFleetIPMode(mode) {
+  state.fleetIPMode = mode === "full" ? "full" : "compact";
+  storageSet("gridlens.fleetIPMode", state.fleetIPMode);
+  document.body.classList.toggle("fleet-ip-full", state.fleetIPMode === "full");
+  updateFleetIPButtons();
+}
+
+function updateFleetIPButtons() {
+  els.fleetIPCompactBtn.classList.toggle("active", state.fleetIPMode === "compact");
+  els.fleetIPFullBtn.classList.toggle("active", state.fleetIPMode === "full");
+}
+
 function toggleTheme() {
   applyTheme(state.theme === "dark" ? "light" : "dark");
 }
@@ -392,6 +631,44 @@ function sshLoginSummary(sshTarget) {
 
 function targetDisplayName(target) {
   return target.hostName || target.name || target.address || "unknown PC";
+}
+
+function containerIsRunning(container) {
+  const status = String(container.status || "").toLowerCase();
+  return status.includes("up") || status.includes("running");
+}
+
+function fleetHeartbeat(generatedAt) {
+  if (!generatedAt) return "";
+  const date = new Date(generatedAt);
+  if (Number.isNaN(date.getTime())) return "";
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 2) return "now";
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  return `${minutes}m`;
+}
+
+function imageTag(image) {
+  const parts = String(image || "").split(":");
+  if (parts.length < 2) return "";
+  return parts[parts.length - 1];
+}
+
+function shortID(id) {
+  return String(id || "").slice(0, 12);
+}
+
+function sourceLabel(source, parentName) {
+  const value = String(source || "");
+  if (parentName && value.includes("nested")) return `nested in ${parentName}`;
+  if (value.includes("@")) return "ssh";
+  return value;
+}
+
+function compactIP(ip) {
+  const parts = String(ip || "").split(".");
+  return parts.length === 4 ? parts[3] : ip;
 }
 
 function hubIdentityText(hub) {

@@ -25,6 +25,16 @@ The Hub does not bind to `0.0.0.0` by default. It serves:
 The monitor uses the same real read-only discovery code as the CLI. It does not
 invent nodes or display mock fleet data.
 
+The UI has two local screens:
+
+- `Monitor`, the PC-oriented operational view;
+- `Fleet`, a dense sortable table with one row per discovered Nosana host
+  container.
+
+Only the active screen polls. The Monitor screen is idle while Fleet is active,
+Fleet is idle while Monitor is active, and all polling stops when the browser
+tab is hidden.
+
 Use the Config button to add monitored PCs from:
 
 - individual IPs;
