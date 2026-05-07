@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GridLens Monitor</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>GridLens</h1>
+        <p id="updatedAt">Starting monitor</p>
+      </div>
+      <div class="toolbar">
+        <button id="refreshBtn" type="button" title="Refresh now">Refresh</button>
+        <button id="scanBtn" type="button" title="Scan LAN">Scan LAN</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="summary-grid" aria-label="Summary">
+        <article class="metric">
+          <span class="label">Nosana Hosts</span>
+          <strong id="nosanaMatches">0</strong>
+        </article>
+        <article class="metric">
+          <span class="label">Containers</span>
+          <strong id="containersSeen">0</strong>
+        </article>
+        <article class="metric">
+          <span class="label">Runtimes</span>
+          <strong id="runtimesAvailable">0</strong>
+        </article>
+        <article class="metric">
+          <span class="label">Targets</span>
+          <strong id="targetsScanned">0</strong>
+        </article>
+      </section>
+
+      <section class="split">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Hosts</h2>
+            <span id="discoveryState" class="pill">Loading</span>
+          </div>
+          <div id="targets" class="stack"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>LAN Candidates</h2>
+            <span id="scanState" class="pill muted">Idle</span>
+          </div>
+          <div id="scanResults" class="stack compact"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -35,6 +35,7 @@ go run ./cmd/gridlens setup wireguard --dry-run
 go run ./cmd/gridlens doctor wireguard --json
 go run ./cmd/gridlens pc scan --json
 go run ./cmd/gridlens nosana detect --json
+go run ./cmd/gridlens hub start
 ```
 
 ## Remote Access Reality
@@ -57,11 +58,16 @@ GridLens uses real discovery, not mock fleet data.
 Current discovery commands:
 
 ```bash
+gridlens hub start
 gridlens pc scan
 gridlens pc add nodebox --address 192.168.0.167 --ssh grid@192.168.0.167 --container custom-host-a
 gridlens pc list
 gridlens nosana detect
 ```
+
+`hub start` serves the local monitor at `http://127.0.0.1:8787` by default.
+It refreshes real Nosana discovery data through the Hub API and includes a LAN
+candidate scan action.
 
 `pc scan` actively probes selected TCP ports on local `/24` networks or a CIDR
 you provide. It defaults to ports `22`, `2375`, and `2376` so GridLens can find
