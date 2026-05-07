@@ -726,6 +726,16 @@ body.fleet-active .fleet-reset {
   width: 28px;
 }
 
+body.fleet-ip-tail .fleet-table th[data-col="ip"],
+body.fleet-ip-tail .fleet-table td.ip {
+  width: 42px;
+}
+
+body.fleet-ip-full .fleet-table th[data-col="ip"],
+body.fleet-ip-full .fleet-table td.ip {
+  width: 95px;
+}
+
 .fleet-table th[data-col="hostAddress"],
 .fleet-table td.node-addr {
   width: 50px;
@@ -996,20 +1006,27 @@ body.fleet-active .fleet-reset {
   display: none;
 }
 
-.fleet-table .ip-m-compact {
+.fleet-table .ip-m-dot {
   color: #8b7d6b;
 }
 
+.fleet-table .ip-m-tail,
 .fleet-table .ip-m-full {
   display: none;
 }
 
-body.fleet-ip-full .fleet-table .ip-m-compact {
+body.fleet-ip-tail .fleet-table .ip-m-dot,
+body.fleet-ip-full .fleet-table .ip-m-dot {
   display: none;
 }
 
+body.fleet-ip-tail .fleet-table .ip-m-tail,
 body.fleet-ip-full .fleet-table .ip-m-full {
   display: inline;
+}
+
+body.fleet-ip-full .fleet-table .ip-m-tail {
+  display: none;
 }
 
 @media (max-width: 860px) {
