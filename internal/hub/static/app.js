@@ -9,6 +9,7 @@ const state = {
 
 const els = {
   updatedAt: document.querySelector("#updatedAt"),
+  hubIdentity: document.querySelector("#hubIdentity"),
   refreshBtn: document.querySelector("#refreshBtn"),
   scanBtn: document.querySelector("#scanBtn"),
   configBtn: document.querySelector("#configBtn"),
@@ -31,10 +32,13 @@ const els = {
   scanState: document.querySelector("#scanState"),
   targets: document.querySelector("#targets"),
   scanResults: document.querySelector("#scanResults"),
+  dimmedScanDetails: document.querySelector("#dimmedScanDetails"),
+  dimmedScanSummary: document.querySelector("#dimmedScanSummary"),
+  dimmedScanResults: document.querySelector("#dimmedScanResults"),
   nosanaMatches: document.querySelector("#nosanaMatches"),
   containersSeen: document.querySelector("#containersSeen"),
   pcCount: document.querySelector("#pcCount"),
-  targetsScanned: document.querySelector("#targetsScanned"),
+  runtimesAvailable: document.querySelector("#runtimesAvailable"),
 };
 
 els.refreshBtn.addEventListener("click", () => refresh());
@@ -181,8 +185,9 @@ function renderReport(report) {
   els.nosanaMatches.textContent = summary.nosanaHosts ?? summary.nosanaMatches ?? 0;
   els.containersSeen.textContent = summary.containersSeen ?? 0;
   els.pcCount.textContent = summary.pcCount ?? configuredTargets(report).length;
-  els.targetsScanned.textContent = summary.targetsScanned ?? 0;
+  els.runtimesAvailable.textContent = summary.runtimesAvailable ?? 0;
   els.updatedAt.textContent = `Updated ${formatTime(report.generatedAt)}`;
+  els.hubIdentity.textContent = hubIdentityText(report.hub);
 
   const targets = sortedTargets(report.targets || []);
   if (!targets.length) {
@@ -201,6 +206,7 @@ function renderTarget(target) {
   const label = target.skipped ? "Credentials" : hostCount > 0 ? `${hostCount} host${hostCount === 1 ? "" : "s"}` : "No host";
   const pillClass = target.skipped ? "warn" : hostCount > 0 ? "ok" : "muted";
   const meta = pcMeta(target);
+  const displayName = targetDisplayName(target);
   const visibleRuntimes = visibleRuntimeReports(target);
   const runtimes = target.skipped
     ? `<div class="meta">${escapeHTML(target.skipReason || "")}</div>`
@@ -210,7 +216,7 @@ function renderTarget(target) {
     <article class="target">
       <div class="target-head">
         <div class="target-title">
-          <strong>${escapeHTML(target.name)}</strong>
+          <strong>${escapeHTML(displayName)}</strong>
           <div class="meta">${escapeHTML(meta)}</div>
         </div>
         <span class="pill ${pillClass}">${escapeHTML(label)}</span>
@@ -221,11 +227,12 @@ function renderTarget(target) {
 }
 
 function renderCollapsedLocal(target) {
+  const displayName = targetDisplayName(target);
   return `
     <details class="target target-collapsed">
       <summary>
         <span>
-          <strong>local</strong>
+          <strong>${escapeHTML(displayName)}</strong>
           <span class="meta">No Nosana host detected on this Hub PC</span>
         </span>
         <span class="pill muted">Expand</span>
@@ -279,17 +286,20 @@ function renderScan(report) {
   const results = report.results || [];
   if (!results.length) {
     els.scanResults.innerHTML = `<div class="empty">No candidates found.</div>`;
+    els.dimmedScanDetails.hidden = true;
     return;
   }
-  els.scanResults.innerHTML = results.map((candidate) => `
-    <article class="candidate ${candidateStatus(candidate).dim ? "dimmed" : ""}">
-      <div class="row">
-        <strong>${escapeHTML(candidate.ip)}</strong>
-        <span class="pill">${(candidate.openPorts || []).map((port) => escapeHTML(String(port))).join(", ")}</span>
-      </div>
-      <div class="meta">${escapeHTML(candidateStatus(candidate).note)}</div>
-    </article>
-  `).join("");
+  const enriched = results.map((candidate) => ({ candidate, status: candidateStatus(candidate) }));
+  const active = enriched.filter((item) => !item.status.dim);
+  const dimmed = enriched.filter((item) => item.status.dim);
+
+  els.scanResults.innerHTML = active.length
+    ? active.map((item) => renderCandidate(item.candidate, item.status)).join("")
+    : `<div class="empty">No scanned candidates currently have discoverable Nosana hosts.</div>`;
+
+  els.dimmedScanDetails.hidden = dimmed.length === 0;
+  els.dimmedScanSummary.textContent = `${dimmed.length} candidate${dimmed.length === 1 ? "" : "s"} without Nosana hosts or credentials`;
+  els.dimmedScanResults.innerHTML = dimmed.map((item) => renderCandidate(item.candidate, item.status)).join("");
 }
 
 function setTargetSort(sort) {
@@ -309,13 +319,21 @@ function sortedTargets(targets) {
   const local = targets.filter((target) => target.scope !== "configured");
   configured.sort((a, b) => {
     if (state.targetSort === "name") {
-      return String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true, sensitivity: "base" });
+      return targetDisplayName(a).localeCompare(targetDisplayName(b), undefined, { numeric: true, sensitivity: "base" }) || compareIP(a.address, b.address);
     }
-    return compareIP(a.address, b.address) || String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true, sensitivity: "base" });
+    return compareIP(a.address, b.address) || targetDisplayName(a).localeCompare(targetDisplayName(b), undefined, { numeric: true, sensitivity: "base" });
   });
   const localWithHosts = local.filter((target) => countHostContainers(target) > 0);
   const localWithoutHosts = local.filter((target) => countHostContainers(target) === 0);
-  return [...localWithHosts, ...configured, ...localWithoutHosts];
+  if (!localWithHosts.length) {
+    return [...configured, ...localWithoutHosts];
+  }
+  return [...configured, ...localWithHosts].sort((a, b) => {
+    if (state.targetSort === "name") {
+      return targetDisplayName(a).localeCompare(targetDisplayName(b), undefined, { numeric: true, sensitivity: "base" }) || compareIP(a.address, b.address);
+    }
+    return compareIP(a.address, b.address) || targetDisplayName(a).localeCompare(targetDisplayName(b), undefined, { numeric: true, sensitivity: "base" });
+  });
 }
 
 function configuredTargets(report) {
@@ -332,10 +350,22 @@ function visibleRuntimeReports(target) {
 
 function pcMeta(target) {
   const parts = [];
+  if (target.hostName && target.hostName !== target.name) parts.push(`config ${target.name}`);
   if (target.address) parts.push(`IP ${target.address}`);
   if (target.sshTarget) parts.push(`SSH ${target.sshTarget}`);
   if (!parts.length) parts.push(target.scope || "target");
   return parts.join(" | ");
+}
+
+function targetDisplayName(target) {
+  return target.hostName || target.name || target.address || "unknown PC";
+}
+
+function hubIdentityText(hub) {
+  if (!hub) return "Hub PC unknown";
+  const name = hub.name || "unknown";
+  const ips = (hub.ipAddresses || []).join(", ") || "no private LAN IP detected";
+  return `Hub PC ${name} | IP ${ips}`;
 }
 
 function countHostContainers(target) {
@@ -370,6 +400,18 @@ function candidateStatus(candidate) {
     return { dim: true, note: "Configured, but no Nosana host is currently running or discoverable." };
   }
   return { dim: false, note: `${hostCount} Nosana host${hostCount === 1 ? "" : "s"} discovered.` };
+}
+
+function renderCandidate(candidate, status) {
+  return `
+    <article class="candidate ${status.dim ? "dimmed" : ""}">
+      <div class="row">
+        <strong>${escapeHTML(candidate.ip)}</strong>
+        <span class="pill">${(candidate.openPorts || []).map((port) => escapeHTML(String(port))).join(", ")}</span>
+      </div>
+      <div class="meta">${escapeHTML(status.note)}</div>
+    </article>
+  `;
 }
 
 function compareIP(a, b) {
