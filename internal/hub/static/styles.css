@@ -57,7 +57,7 @@ body.fleet-active {
   background: #111111;
   color: #e0e0e0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 body.fleet-active .topbar {
@@ -67,7 +67,7 @@ body.fleet-active .topbar {
 body.fleet-active main {
   width: 100%;
   margin: 0;
-  padding: 14px 20px 32px;
+  padding: 10px 13px 28px;
 }
 
 body.fleet-active button {
@@ -585,19 +585,19 @@ label span {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .fleet-title-row h2 {
   color: #ffffff;
-  font-size: 28px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.1;
 }
 
 .fleet-count {
   color: #00a040;
-  font-size: 18px;
+  font-size: 13px;
   font-weight: 500;
 }
 
@@ -605,16 +605,16 @@ label span {
 .fleet-gather-text,
 .fleet-updated {
   color: #888888;
-  font-size: 16px;
+  font-size: 12px;
 }
 
 .fleet-updated {
   margin-top: 3px;
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .fleet-legend {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .fleet-reset {
@@ -640,7 +640,7 @@ body.fleet-active .fleet-reset {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 24px;
+  margin-top: 16px;
 }
 
 .fleet-actions button {
@@ -651,7 +651,7 @@ body.fleet-active .fleet-reset {
 
 .fleet-gather {
   width: min(720px, 100%);
-  margin: 55px 0 8px;
+  margin: 30px 0 6px;
 }
 
 .fleet-gather-track {
@@ -694,16 +694,134 @@ body.fleet-active .fleet-reset {
 
 .fleet-table {
   width: max-content;
-  min-width: 100%;
+  min-width: 0;
   border-collapse: collapse;
 }
 
 .fleet-table th,
 .fleet-table td {
   border-bottom: 1px solid #2a2a2a;
-  padding: 6px 8px;
+  padding: 4px 6px;
   text-align: center;
   white-space: nowrap;
+}
+
+.fleet-table th[data-col="heartbeat"],
+.fleet-table td.seen {
+  width: 52px;
+}
+
+.fleet-table th[data-col="status"],
+.fleet-table td.tier {
+  width: 28px;
+}
+
+.fleet-table th[data-col="pc"],
+.fleet-table td.host {
+  width: 52px;
+}
+
+.fleet-table th[data-col="ip"],
+.fleet-table td.ip {
+  width: 28px;
+}
+
+.fleet-table th[data-col="hostAddress"],
+.fleet-table td.node-addr {
+  width: 50px;
+}
+
+.fleet-table th[data-col="sol"],
+.fleet-table td.sol {
+  width: 45px;
+}
+
+.fleet-table th[data-col="hostSignal"],
+.fleet-table td.host-signal {
+  width: 34px;
+}
+
+.fleet-table th[data-col="state"],
+.fleet-table td.state {
+  width: 62px;
+}
+
+.fleet-table th[data-col="latestJob"],
+.fleet-table td.running-job {
+  width: 54px;
+}
+
+.fleet-table th[data-col="duration"],
+.fleet-table td.dur {
+  width: 42px;
+}
+
+.fleet-table th[data-col="queued"],
+.fleet-table td.q,
+.fleet-table th[data-col="ram"],
+.fleet-table td.ram,
+.fleet-table th[data-col="disk"],
+.fleet-table td.disk {
+  width: 40px;
+}
+
+.fleet-table th[data-col="dl"],
+.fleet-table td.dl,
+.fleet-table th[data-col="ul"],
+.fleet-table td.ul {
+  width: 34px;
+}
+
+.fleet-table th[data-col="ping"],
+.fleet-table td.ping {
+  width: 36px;
+}
+
+.fleet-table th[data-col="stakedNos"],
+.fleet-table td.stakedNos {
+  width: 48px;
+}
+
+.fleet-table th[data-col="rewards"],
+.fleet-table td.rewards {
+  width: 55px;
+}
+
+.fleet-table th[data-col="nos"],
+.fleet-table td.nos {
+  width: 42px;
+}
+
+.fleet-table th[data-col="market"],
+.fleet-table td.gpu {
+  width: 125px;
+}
+
+.fleet-table th[data-col="gpuID"],
+.fleet-table td.gpuid {
+  width: 42px;
+}
+
+.fleet-table th[data-col="currentNode"],
+.fleet-table td.ver {
+  width: 60px;
+}
+
+.fleet-table th[data-col="cuda"],
+.fleet-table td.cuda,
+.fleet-table th[data-col="cpu"],
+.fleet-table td.cpu {
+  width: 40px;
+}
+
+.fleet-table th[data-col="nvidia"],
+.fleet-table td.nvidia-drv {
+  width: 50px;
+}
+
+.fleet-table th[data-col="system"],
+.fleet-table td.sysenv {
+  width: 52px;
 }
 
 .fleet-table tbody tr:nth-child(even) {
@@ -714,10 +832,10 @@ body.fleet-active .fleet-reset {
   position: sticky;
   top: 0;
   z-index: 2;
-  height: 108px;
+  height: 86px;
   background: #111111;
   color: #aaaaaa;
-  font-size: 16px;
+  font-size: 10px;
   user-select: none;
   vertical-align: bottom;
 }
@@ -765,26 +883,28 @@ body.fleet-active .fleet-reset {
 }
 
 .fleet-table td {
-  height: 53px;
+  height: 34px;
   color: #888888;
-  font-size: 18px;
+  font-size: 12px;
 }
 
 .fleet-table td.host {
   color: #ffffff;
   font-weight: 700;
+  font-size: 15px;
   text-align: left;
 }
 
 .fleet-table td.node-addr {
   color: #60a5fa;
   font-weight: 700;
+  font-size: 13px;
   text-align: left;
 }
 
 .fleet-table .seen {
   color: #ff4444;
-  font-size: 18px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -820,7 +940,6 @@ body.fleet-active .fleet-reset {
 
 .fleet-table .gpu {
   color: #888888;
-  min-width: 150px;
 }
 
 .fleet-table .ver {
@@ -848,8 +967,8 @@ body.fleet-active .fleet-reset {
 
 .fleet-host-dot {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   background: #4ade80;
   box-shadow: 0 0 9px rgba(74, 222, 128, 0.65);
@@ -857,8 +976,8 @@ body.fleet-active .fleet-reset {
 
 .dur-bar {
   display: inline-block;
-  width: 46px;
-  height: 12px;
+  width: 30px;
+  height: 10px;
   overflow: hidden;
   vertical-align: middle;
   border-radius: 4px;
