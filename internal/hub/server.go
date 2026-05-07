@@ -38,6 +38,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/healthz", s.handleHealthz)
 	mux.HandleFunc("/api/config", s.handleConfig)
+	mux.HandleFunc("/api/config/pcs/bulk", s.handleBulkPCs)
 	mux.HandleFunc("/api/nosana", s.handleNosana)
 	mux.HandleFunc("/api/pc/scan", s.handlePCScan)
 
@@ -86,6 +87,107 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"configPath": path,
+		"config":     cfg,
+	})
+}
+
+type bulkPCRequest struct {
+	Addresses         string   `json:"addresses"`
+	Username          string   `json:"username"`
+	Password          string   `json:"password"`
+	Runtimes          []string `json:"runtimes"`
+	ContainerNames    []string `json:"containerNames"`
+	ContainerPatterns []string `json:"containerPatterns"`
+	MaxHosts          int      `json:"maxHosts"`
+}
+
+func (s *Server) handleBulkPCs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+
+	var request bulkPCRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	addresses, err := network.ParseAddressSpecs(request.Addresses, request.MaxHosts)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if len(addresses) == 0 {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("enter at least one IPv4 address, range, or CIDR"))
+		return
+	}
+
+	path := s.configPath
+	if path == "" {
+		path, err = config.Path()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	existing := map[string]string{}
+	for _, pc := range cfg.PCs {
+		if pc.Address != "" {
+			existing[pc.Address] = pc.Name
+		}
+	}
+
+	added := 0
+	updated := 0
+	username := strings.TrimSpace(request.Username)
+	for _, address := range addresses {
+		name := "pc-" + strings.ReplaceAll(address, ".", "-")
+		if existingName := existing[address]; existingName != "" {
+			name = existingName
+		}
+		pc := config.PC{
+			Name:              name,
+			Address:           address,
+			Runtimes:          request.Runtimes,
+			ContainerNames:    request.ContainerNames,
+			ContainerPatterns: request.ContainerPatterns,
+		}
+		if username != "" {
+			pc.SSHTarget = username + "@" + address
+		}
+		if existing[address] != "" {
+			updated++
+		} else {
+			added++
+		}
+		if err := cfg.AddOrUpdatePC(pc); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	if err := config.Save(path, cfg); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	warnings := []string{}
+	if strings.TrimSpace(request.Password) != "" {
+		warnings = append(warnings, "password was accepted for this request but was not stored; use SSH keys now or future GridLens agent enrollment for persistent collection")
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"configPath": path,
+		"added":      added,
+		"updated":    updated,
+		"warnings":   warnings,
 		"config":     cfg,
 	})
 }

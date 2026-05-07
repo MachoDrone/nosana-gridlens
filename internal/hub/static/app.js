@@ -1,13 +1,29 @@
 const state = {
   loading: false,
   scanning: false,
+  savingConfig: false,
   lastReport: null,
+  config: null,
 };
 
 const els = {
   updatedAt: document.querySelector("#updatedAt"),
   refreshBtn: document.querySelector("#refreshBtn"),
   scanBtn: document.querySelector("#scanBtn"),
+  configBtn: document.querySelector("#configBtn"),
+  configDialog: document.querySelector("#configDialog"),
+  closeConfigBtn: document.querySelector("#closeConfigBtn"),
+  configForm: document.querySelector("#configForm"),
+  configPath: document.querySelector("#configPath"),
+  addressesInput: document.querySelector("#addressesInput"),
+  usernameInput: document.querySelector("#usernameInput"),
+  passwordInput: document.querySelector("#passwordInput"),
+  containersInput: document.querySelector("#containersInput"),
+  patternsInput: document.querySelector("#patternsInput"),
+  runtimeDocker: document.querySelector("#runtimeDocker"),
+  runtimePodman: document.querySelector("#runtimePodman"),
+  configMessage: document.querySelector("#configMessage"),
+  configuredPCs: document.querySelector("#configuredPCs"),
   discoveryState: document.querySelector("#discoveryState"),
   scanState: document.querySelector("#scanState"),
   targets: document.querySelector("#targets"),
@@ -20,6 +36,12 @@ const els = {
 
 els.refreshBtn.addEventListener("click", () => refresh());
 els.scanBtn.addEventListener("click", () => scanLAN());
+els.configBtn.addEventListener("click", () => openConfig());
+els.closeConfigBtn.addEventListener("click", () => els.configDialog.close());
+els.configForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveBulkConfig();
+});
 
 refresh();
 setInterval(refresh, 10000);
@@ -63,13 +85,88 @@ async function scanLAN() {
   }
 }
 
-async function getJSON(path) {
-  const response = await fetch(path, { headers: { Accept: "application/json" } });
+async function getJSON(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: { Accept: "application/json", ...(options.headers || {}) },
+  });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.error || `${response.status} ${response.statusText}`);
   }
   return body;
+}
+
+async function openConfig() {
+  els.configDialog.showModal();
+  els.configMessage.textContent = "Loading current configuration.";
+  await loadConfig();
+}
+
+async function loadConfig() {
+  try {
+    const response = await getJSON("/api/config");
+    state.config = response;
+    renderConfig(response);
+    els.configMessage.textContent = "Ready.";
+  } catch (error) {
+    els.configMessage.innerHTML = `<span class="error-text">${escapeHTML(error.message)}</span>`;
+  }
+}
+
+async function saveBulkConfig() {
+  if (state.savingConfig) return;
+  state.savingConfig = true;
+  const runtimes = [];
+  if (els.runtimeDocker.checked) runtimes.push("docker");
+  if (els.runtimePodman.checked) runtimes.push("podman");
+
+  const payload = {
+    addresses: els.addressesInput.value,
+    username: els.usernameInput.value,
+    password: els.passwordInput.value,
+    runtimes,
+    containerNames: splitCSV(els.containersInput.value),
+    containerPatterns: splitCSV(els.patternsInput.value),
+    maxHosts: 1024,
+  };
+
+  try {
+    const response = await getJSON("/api/config/pcs/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    renderConfig({ configPath: response.configPath, config: response.config });
+    const warning = (response.warnings || []).join(" ");
+    els.configMessage.textContent = `Saved ${response.added} new PCs and updated ${response.updated}. ${warning}`.trim();
+    els.passwordInput.value = "";
+    await refresh();
+  } catch (error) {
+    els.configMessage.innerHTML = `<span class="error-text">${escapeHTML(error.message)}</span>`;
+  } finally {
+    state.savingConfig = false;
+  }
+}
+
+function renderConfig(response) {
+  const cfg = response.config || {};
+  const pcs = cfg.pcs || [];
+  els.configPath.textContent = response.configPath || "Config path unknown";
+
+  if (!pcs.length) {
+    els.configuredPCs.innerHTML = `<div class="empty">No PCs configured yet.</div>`;
+    return;
+  }
+
+  els.configuredPCs.innerHTML = pcs.map((pc) => `
+    <article class="candidate">
+      <strong>${escapeHTML(pc.name)}</strong>
+      <div class="meta">${escapeHTML([pc.address, pc.sshTarget].filter(Boolean).join(" | "))}</div>
+      <div class="meta">containers: ${escapeHTML((pc.containerNames || []).join(", ") || "default patterns")}</div>
+      <div class="meta">patterns: ${escapeHTML((pc.containerPatterns || []).join(", ") || (cfg.defaultContainerPatterns || []).join(", "))}</div>
+    </article>
+  `).join("");
 }
 
 function renderReport(report) {
@@ -169,6 +266,13 @@ function renderScan(report) {
 function setPill(element, text, className) {
   element.className = `pill ${className || ""}`.trim();
   element.textContent = text;
+}
+
+function splitCSV(value) {
+  return String(value || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function formatTime(value) {

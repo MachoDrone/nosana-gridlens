@@ -67,7 +67,8 @@ gridlens nosana detect
 
 `hub start` serves the local monitor at `http://127.0.0.1:8787` by default.
 It refreshes real Nosana discovery data through the Hub API and includes a LAN
-candidate scan action.
+candidate scan action. Use the Config button in the monitor to add individual
+IPs, comma-separated IPs, ranges, or small CIDRs.
 
 `pc scan` actively probes selected TCP ports on local `/24` networks or a CIDR
 you provide. It defaults to ports `22`, `2375`, and `2376` so GridLens can find
@@ -78,3 +79,7 @@ operations.
 Podman nested inside Docker containers using read-only status commands. Manual
 PC/container config exists because Nosana host container names can be customized
 and one PC may run multiple Nosana hosts.
+
+Passwords entered through the monitor are not written to disk. For persistent
+cross-PC collection, GridLens should prefer SSH keys now and a future
+GridLens-agent protocol with mutual TLS.

@@ -25,6 +25,18 @@ The Hub does not bind to `0.0.0.0` by default. It serves:
 The monitor uses the same real read-only discovery code as the CLI. It does not
 invent nodes or display mock fleet data.
 
+Use the Config button to add monitored PCs from:
+
+- individual IPs;
+- comma-separated random IPs;
+- short ranges such as `192.168.0.100-120`;
+- full ranges such as `192.168.0.100-192.168.0.130`;
+- small CIDRs.
+
+The Config form can apply one username across a batch of IPs. Add separate
+entries when each PC needs a unique login. Passwords entered in the form are not
+persisted to disk.
+
 Current monitor data:
 
 - configured PCs;
@@ -39,4 +51,5 @@ Current limits:
 - no login/auth layer yet because the default bind is loopback-only;
 - no remote WireGuard tunnel UI binding yet;
 - no GPU, memory, disk, or log telemetry yet;
-- no web form for adding PCs yet.
+- no password-based persistent polling yet;
+- no GridLens agent protocol yet.

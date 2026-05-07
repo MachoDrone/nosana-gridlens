@@ -97,6 +97,28 @@ button:disabled {
   opacity: 0.65;
 }
 
+input,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+input {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+textarea {
+  min-height: 120px;
+  padding: 10px;
+  resize: vertical;
+}
+
 main {
   width: min(1280px, 100%);
   margin: 0 auto;
@@ -288,6 +310,78 @@ main {
   background: var(--red-soft);
 }
 
+.dialog {
+  width: min(760px, calc(100vw - 28px));
+  max-height: min(820px, calc(100vh - 28px));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: rgba(24, 32, 42, 0.48);
+}
+
+.dialog form {
+  padding: 16px;
+}
+
+.dialog-head,
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+label span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checks input {
+  width: auto;
+  min-height: 0;
+}
+
+.configured-list {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
 @media (max-width: 860px) {
   .topbar {
     align-items: flex-start;
@@ -300,6 +394,10 @@ main {
   }
 
   .container-row {
+    grid-template-columns: 1fr;
+  }
+
+  .field-row {
     grid-template-columns: 1fr;
   }
 }
