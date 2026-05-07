@@ -93,19 +93,23 @@
       </section>
 
       <section id="fleetView" class="view fleet-view" hidden>
-        <div class="fleet-topline">
+        <div class="fleet-title-row">
           <div>
             <h2>Nosana Fleet <span id="fleetHostCount" class="fleet-count">0 hosts</span></h2>
-            <p id="fleetUpdatedAt" class="meta">Waiting for data</p>
-          </div>
-          <div class="panel-tools">
-            <div class="segmented" aria-label="Fleet display">
-              <button id="fleetIPCompactBtn" type="button">Compact IP</button>
-              <button id="fleetIPFullBtn" type="button">Full IP</button>
+            <div class="fleet-legend">
+              Tap column header to sort <button id="fleetSortResetBtn" class="fleet-reset" type="button" title="Clear sort">CL</button>
             </div>
-            <span id="fleetState" class="pill">Idle</span>
           </div>
         </div>
+
+        <div id="fleetGatherBar" class="fleet-gather" data-label="Gathering data from nodes...">
+          <div class="fleet-gather-track">
+            <div id="fleetGatherFill" class="fleet-gather-fill"></div>
+          </div>
+          <div class="fleet-gather-text">Gathering data from nodes...</div>
+          <div id="fleetUpdatedAt" class="fleet-updated">Waiting for data</div>
+        </div>
+
         <div class="fleet-table-wrap">
           <table id="fleetTable" class="fleet-table">
             <thead id="fleetTableHead">
@@ -113,18 +117,39 @@
                 <th data-col="heartbeat" data-type="num"><div>Monitor HB</div></th>
                 <th data-col="status" data-type="string"><div>Status</div></th>
                 <th data-col="pc" data-type="string"><div>PC</div></th>
-                <th data-col="ip" data-type="string"><div>IP</div></th>
-                <th data-col="host" data-type="string"><div class="ml2">Host<br>Container</div></th>
-                <th data-col="runtime" data-type="string"><div>Runtime</div></th>
+                <th data-col="ip" data-type="string"><div>IP <span id="fleetIPToggle" class="fleet-header-toggle" title="Toggle IP display">↻</span></div></th>
+                <th data-col="hostAddress" data-type="string"><div class="ml2">Host<br>Address</div></th>
+                <th data-col="sol" data-type="num"><div>SOL</div></th>
+                <th data-col="hostSignal" data-type="string"><div>Host</div></th>
                 <th data-col="state" data-type="string"><div>State</div></th>
-                <th data-col="image" data-type="string"><div>Image</div></th>
-                <th data-col="node" data-type="string"><div>Node</div></th>
-                <th data-col="id" data-type="string"><div class="ml2">Container<br>ID</div></th>
-                <th data-col="source" data-type="string"><div>Source</div></th>
+                <th data-col="latestJob" data-type="string"><div class="ml2">Latest<br>Job</div></th>
+                <th data-col="duration" data-type="string"><div>Duration</div></th>
+                <th data-col="queued" data-type="string"><div>Queued</div></th>
+                <th data-col="ram" data-type="num"><div>RAM</div></th>
+                <th data-col="disk" data-type="num"><div>Disk</div></th>
+                <th data-col="dl" data-type="num"><div>DL</div></th>
+                <th data-col="ul" data-type="num"><div>UL</div></th>
+                <th data-col="ping" data-type="num"><div>Ping</div></th>
+                <th data-col="stakedNos" data-type="num"><div>Staked NOS</div></th>
+                <th data-col="rewards" data-type="num"><div class="ml2">Rewards<br>to claim</div></th>
+                <th data-col="nos" data-type="num"><div>NOS</div></th>
+                <th data-col="market" data-type="string"><div>Market</div></th>
+                <th data-col="gpuID" data-type="num"><div>GPU ID</div></th>
+                <th data-col="currentNode" data-type="string"><div class="ml3">Current<br>Node<br>1.1.14</div></th>
+                <th data-col="cuda" data-type="string"><div>CUDA</div></th>
+                <th data-col="nvidia" data-type="string"><div>NVIDIA</div></th>
+                <th data-col="cpu" data-type="string"><div>CPU</div></th>
+                <th data-col="system" data-type="string"><div>System</div></th>
               </tr>
             </thead>
             <tbody id="fleetRows"></tbody>
           </table>
+        </div>
+        <div class="fleet-actions">
+          <button id="fleetMonitorBtn" type="button">Monitor</button>
+          <button id="fleetRefreshBtn" type="button">Refresh</button>
+          <button id="fleetConfigBtn" type="button">Config</button>
+          <span id="fleetState" class="pill">Idle</span>
         </div>
       </section>
     </main>

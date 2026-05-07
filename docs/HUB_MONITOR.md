@@ -31,6 +31,11 @@ The UI has two local screens:
 - `Fleet`, a dense sortable table with one row per discovered Nosana host
   container.
 
+The Fleet screen intentionally follows the compact Nosana Fleet table layout:
+black standalone surface, monospace text, vertical sortable headers, and the
+same broad column shape. Columns that GridLens does not collect yet are rendered
+as not-collected dashes instead of fabricated data.
+
 Only the active screen polls. The Monitor screen is idle while Fleet is active,
 Fleet is idle while Monitor is active, and all polling stops when the browser
 tab is hidden.
