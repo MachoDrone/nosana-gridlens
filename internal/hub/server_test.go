@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,43 @@ func TestHealthz(t *testing.T) {
 	}
 	if body["ok"] != true {
 		t.Fatalf("unexpected health body: %+v", body)
+	}
+}
+
+func TestBulkPCsStoresIPsAndDoesNotStorePassword(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	server := NewServer(execx.NewFakeRunner(), func() time.Time { return time.Unix(0, 0) }, path)
+
+	body := bytes.NewBufferString(`{
+		"addresses": "192.168.0.101, 192.168.0.110-111",
+		"username": "grid",
+		"password": "secret",
+		"containerNames": ["custom-a"],
+		"containerPatterns": ["nosana-*"],
+		"runtimes": ["docker", "podman"]
+	}`)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/config/pcs/bulk", body)
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	loaded, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if len(loaded.PCs) != 3 {
+		t.Fatalf("expected three PCs, got %+v", loaded.PCs)
+	}
+	if loaded.PCs[0].SSHTarget != "grid@192.168.0.101" {
+		t.Fatalf("unexpected SSH target: %+v", loaded.PCs[0])
+	}
+
+	data := response.Body.String()
+	if bytes.Contains([]byte(data), []byte("secret")) {
+		t.Fatalf("password leaked in response: %s", data)
 	}
 }
 

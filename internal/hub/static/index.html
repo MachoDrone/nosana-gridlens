@@ -15,6 +15,7 @@
       <div class="toolbar">
         <button id="refreshBtn" type="button" title="Refresh now">Refresh</button>
         <button id="scanBtn" type="button" title="Scan LAN">Scan LAN</button>
+        <button id="configBtn" type="button" title="Configure PCs">Config</button>
       </div>
     </header>
 
@@ -56,6 +57,62 @@
         </section>
       </section>
     </main>
+
+    <dialog id="configDialog" class="dialog">
+      <form id="configForm" method="dialog">
+        <div class="dialog-head">
+          <div>
+            <h2>PC Configuration</h2>
+            <p id="configPath" class="meta">Loading config</p>
+          </div>
+          <button id="closeConfigBtn" type="button" title="Close">Close</button>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            <span>IP Addresses Or Ranges</span>
+            <textarea id="addressesInput" rows="6" placeholder="192.168.0.101&#10;192.168.0.110-120&#10;192.168.0.130, 192.168.0.141"></textarea>
+          </label>
+
+          <div class="field-row">
+            <label>
+              <span>Username</span>
+              <input id="usernameInput" type="text" autocomplete="username" placeholder="grid">
+            </label>
+            <label>
+              <span>Password</span>
+              <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Not saved to disk">
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label>
+              <span>Exact Container Names</span>
+              <input id="containersInput" type="text" placeholder="nosana-node, nosana-a">
+            </label>
+            <label>
+              <span>Name Patterns</span>
+              <input id="patternsInput" type="text" placeholder="*nosana*, gpu-*">
+            </label>
+          </div>
+
+          <div class="checks">
+            <label><input id="runtimeDocker" type="checkbox" checked> Docker</label>
+            <label><input id="runtimePodman" type="checkbox" checked> Podman</label>
+          </div>
+
+          <div id="configMessage" class="empty"></div>
+          <div class="dialog-actions">
+            <button id="saveConfigBtn" type="submit">Save PCs</button>
+          </div>
+        </div>
+
+        <section class="configured-list">
+          <h2>Configured PCs</h2>
+          <div id="configuredPCs" class="stack compact"></div>
+        </section>
+      </form>
+    </dialog>
 
     <script src="/app.js"></script>
   </body>
