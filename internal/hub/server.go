@@ -217,9 +217,11 @@ func (s *Server) handleNosana(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	report := nosana.Detect(ctx, s.runner, cfg, nosana.Options{
-		ConfigPath:    path,
-		IncludeNested: true,
-		Now:           s.now(),
+		ConfigPath:           path,
+		IncludeNested:        true,
+		Now:                  s.now(),
+		MaxConcurrentTargets: 32,
+		MaxConcurrentNested:  8,
 	})
 	writeJSON(w, http.StatusOK, report)
 }

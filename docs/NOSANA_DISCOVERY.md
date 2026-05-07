@@ -23,6 +23,18 @@ Discovery currently checks:
 - Podman over configured SSH targets;
 - Podman nested inside Docker containers.
 
+GridLens must keep PC count and Nosana host count separate. A PC can run native
+Docker, native Podman, or Docker containers that host nested Podman. One PC can
+run zero, one, or many Nosana host containers.
+
+A Nosana host is:
+
+- a matched `nosana-node` container; or
+- a matched operator-chosen custom container name.
+
+Runtime wrapper containers should not be counted as Nosana hosts when they only
+exist to run nested Podman containers.
+
 All runtime checks are read-only status commands such as `docker ps`,
 `podman ps`, and `docker exec <container> podman ps` for nested Podman
 discovery.
@@ -49,6 +61,14 @@ User-level config is stored at:
 ```
 
 This file contains host discovery hints only. It must not contain private keys.
+
+## Scale
+
+The current SSH discovery path uses bounded concurrency so it can inspect large
+configured fleets without serially blocking on every PC. It is still a bridge,
+not the desired long-term telemetry protocol. For customers with 100-200 Nosana
+hosts, the production direction is a GridLens agent on each PC that publishes
+authenticated status snapshots to one or more Hubs over mTLS.
 
 ## Network Scan
 

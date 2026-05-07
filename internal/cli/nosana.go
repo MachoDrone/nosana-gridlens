@@ -38,9 +38,11 @@ func (a *App) runNosanaDetect(ctx context.Context, args []string) int {
 	}
 
 	report := nosana.Detect(ctx, a.runner, cfg, nosana.Options{
-		ConfigPath:    path,
-		IncludeNested: *includeNested,
-		Now:           a.now(),
+		ConfigPath:           path,
+		IncludeNested:        *includeNested,
+		Now:                  a.now(),
+		MaxConcurrentTargets: 32,
+		MaxConcurrentNested:  8,
 	})
 	if *jsonOutput {
 		return writeJSON(a.out, report)
@@ -52,7 +54,7 @@ func (a *App) runNosanaDetect(ctx context.Context, args []string) int {
 	fmt.Fprintf(a.out, "Targets scanned: %d\n", report.Summary.TargetsScanned)
 	fmt.Fprintf(a.out, "Runtimes available: %d\n", report.Summary.RuntimesAvailable)
 	fmt.Fprintf(a.out, "Containers seen: %d\n", report.Summary.ContainersSeen)
-	fmt.Fprintf(a.out, "Nosana matches: %d\n", report.Summary.NosanaMatches)
+	fmt.Fprintf(a.out, "Nosana hosts: %d\n", report.Summary.NosanaHosts)
 	fmt.Fprintln(a.out)
 
 	for _, target := range report.Targets {

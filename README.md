@@ -55,6 +55,11 @@ access can always work automatically.
 
 GridLens uses real discovery, not mock fleet data.
 
+GridLens separates PCs from Nosana hosts. A PC is a physical or virtual machine
+that may run native Docker, native Podman, or Podman nested inside Docker. A
+Nosana host is the actual `nosana-node` container or an operator-chosen custom
+container name. One PC can run multiple Nosana hosts.
+
 Current discovery commands:
 
 ```bash
@@ -83,3 +88,7 @@ and one PC may run multiple Nosana hosts.
 Passwords entered through the monitor are not written to disk. For persistent
 cross-PC collection, GridLens should prefer SSH keys now and a future
 GridLens-agent protocol with mutual TLS.
+
+The SSH discovery path uses bounded concurrency so larger fleets can be
+inspected, but 100-200 host customers should ultimately use the planned
+GridLens-agent snapshot protocol rather than long-term SSH polling.

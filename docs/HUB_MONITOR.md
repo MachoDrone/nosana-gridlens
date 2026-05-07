@@ -42,9 +42,15 @@ Current monitor data:
 - configured PCs;
 - local Docker/Podman availability;
 - configured SSH Docker/Podman availability;
-- matching Nosana containers by exact name or configured patterns;
+- matching Nosana host containers by `nosana-node`, exact custom name, or
+  configured patterns;
 - Podman nested inside Docker containers;
 - LAN candidates from selected TCP ports.
+
+The monitor separates carrier PCs from Nosana hosts. A customer may have 6 PCs
+and 8 Nosana hosts, or 80 PCs and 200 Nosana hosts. Runtime wrapper containers
+are shown as containers but should not inflate the Nosana host count when nested
+Nosana containers are found.
 
 Current limits:
 
