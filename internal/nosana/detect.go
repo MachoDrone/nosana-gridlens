@@ -156,6 +156,7 @@ func detectLocalRuntime(ctx context.Context, runner execx.Runner, runtimeName st
 
 	if runtimeName == "docker" && includeNested {
 		addNestedPodman(ctx, runner, "local", containers, matcher)
+		demoteRuntimeWrappers(containers)
 	}
 	report.Containers = containers
 	return report
@@ -184,6 +185,7 @@ func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget str
 
 	if runtimeName == "docker" && includeNested {
 		addRemoteNestedPodman(ctx, runner, sshTarget, containers, matcher)
+		demoteRuntimeWrappers(containers)
 	}
 	report.Containers = containers
 	return report
@@ -243,6 +245,31 @@ func addRemoteNestedPodman(ctx context.Context, runner execx.Runner, sshTarget s
 			containers[i].Nested = nested
 		}
 	}
+}
+
+func demoteRuntimeWrappers(containers []Container) {
+	for i := range containers {
+		if !containers[i].Matched || !looksLikeRuntimeWrapper(containers[i]) || !hasNestedMatch(containers[i]) {
+			continue
+		}
+		containers[i].Matched = false
+		containers[i].MatchReason = "runtime wrapper; nested Nosana containers counted instead"
+	}
+}
+
+func looksLikeRuntimeWrapper(container Container) bool {
+	name := strings.ToLower(container.Name)
+	image := strings.ToLower(container.Image)
+	return strings.HasPrefix(name, "podman") || strings.Contains(image, "nosana/podman")
+}
+
+func hasNestedMatch(container Container) bool {
+	for _, nested := range container.Nested {
+		if nested.Matched || hasNestedMatch(nested) {
+			return true
+		}
+	}
+	return false
 }
 
 func summarize(targets []TargetReport) Summary {
