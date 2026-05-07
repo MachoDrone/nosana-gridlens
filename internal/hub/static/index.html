@@ -26,7 +26,7 @@
       <div>
         <h1>GridLens</h1>
         <p id="updatedAt">Starting monitor</p>
-        <p id="hubIdentity">Hub PC loading</p>
+        <p id="hubIdentity">Using PC loading</p>
       </div>
       <div class="toolbar">
         <button id="themeBtn" type="button" title="Switch theme">Light</button>
@@ -53,10 +53,6 @@
             <span id="gridLensTraffic" class="metric-side">0 B/s</span>
           </div>
         </article>
-        <article class="metric" title="Successful Docker or Podman checks across PCs.">
-          <span class="label">Runtime APIs</span>
-          <strong id="runtimesAvailable">0</strong>
-        </article>
       </section>
 
       <section class="split">
@@ -80,7 +76,7 @@
             <span id="scanState" class="pill muted">Idle</span>
           </div>
           <div id="scanResults" class="stack compact"></div>
-          <details id="dimmedScanDetails" class="dimmed-details">
+          <details id="dimmedScanDetails" class="dimmed-details" hidden>
             <summary>
               <span id="dimmedScanSummary">Hidden candidates</span>
               <span class="summary-action" aria-hidden="true"></span>

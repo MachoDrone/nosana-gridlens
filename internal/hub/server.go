@@ -218,16 +218,17 @@ func (s *Server) handleNosana(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 
-	now := s.now().UTC()
+	startedAt := s.now().UTC()
 	report := nosana.Detect(ctx, s.runner, cfg, nosana.Options{
 		ConfigPath:           path,
 		IncludeNested:        true,
-		Now:                  now,
+		Now:                  startedAt,
 		MaxConcurrentTargets: 32,
 		MaxConcurrentNested:  8,
 	})
-	s.trafficMeter.Add(now, report.CollectionTraffic)
-	report.Summary.GridLensTraffic = s.trafficMeter.Snapshot(now)
+	finishedAt := s.now().UTC()
+	s.trafficMeter.AddSample(startedAt, finishedAt, report.CollectionTraffic)
+	report.Summary.GridLensTraffic = s.trafficMeter.Snapshot(finishedAt)
 	writeJSON(w, http.StatusOK, report)
 }
 
@@ -257,6 +258,7 @@ func (s *Server) handlePCScan(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	startedAt := s.now().UTC()
 	var results []network.HostScan
 	var traffic network.TrafficUsage
 	for _, cidr := range cidrs {
@@ -280,7 +282,7 @@ func (s *Server) handlePCScan(w http.ResponseWriter, r *http.Request) {
 		results = append(results, scanResults...)
 	}
 	now := s.now().UTC()
-	s.trafficMeter.Add(now, traffic)
+	s.trafficMeter.AddSample(startedAt, now, traffic)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"generatedAt": now,
