@@ -6,6 +6,7 @@ const state = {
   config: null,
   targetSort: storageGet("gridlens.targetSort") || "ip",
   theme: storageGet("gridlens.theme") || "dark",
+  localPCExpanded: storageGet("gridlens.localPCExpanded") === "true",
 };
 
 const els = {
@@ -41,7 +42,6 @@ const els = {
   containersSeen: document.querySelector("#containersSeen"),
   pcCount: document.querySelector("#pcCount"),
   gridLensTraffic: document.querySelector("#gridLensTraffic"),
-  runtimesAvailable: document.querySelector("#runtimesAvailable"),
 };
 
 els.themeBtn.addEventListener("click", () => toggleTheme());
@@ -50,6 +50,7 @@ els.scanBtn.addEventListener("click", () => scanLAN());
 els.configBtn.addEventListener("click", () => openConfig());
 els.sortNameBtn.addEventListener("click", () => setTargetSort("name"));
 els.sortIPBtn.addEventListener("click", () => setTargetSort("ip"));
+els.targets.addEventListener("toggle", persistLocalExpanded, true);
 els.closeConfigBtn.addEventListener("click", () => els.configDialog.close());
 els.configForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -192,7 +193,6 @@ function renderReport(report) {
   els.pcCount.textContent = summary.pcCount ?? configuredTargets(report).length;
   els.gridLensTraffic.textContent = formatTrafficRate(summary.gridLensTraffic);
   els.gridLensTraffic.title = trafficTitle(summary.gridLensTraffic);
-  els.runtimesAvailable.textContent = summary.runtimesAvailable ?? 0;
   els.updatedAt.textContent = `Updated ${formatTime(report.generatedAt)}`;
   els.hubIdentity.textContent = hubIdentityText(report.hub);
 
@@ -236,7 +236,7 @@ function renderTarget(target) {
 function renderCollapsedLocal(target) {
   const displayName = targetDisplayName(target);
   return `
-    <details class="target target-collapsed">
+    <details class="target target-collapsed" data-local-target ${state.localPCExpanded ? "open" : ""}>
       <summary>
         <span>
           <strong>${escapeHTML(displayName)}</strong>
@@ -387,7 +387,7 @@ function pcConfigMeta(pc) {
 
 function sshLoginSummary(sshTarget) {
   const login = String(sshTarget || "").split("@")[0].trim();
-  return `SSH ${login || "login"}/key`;
+  return login ? `SSH ${login}` : "SSH key";
 }
 
 function targetDisplayName(target) {
@@ -395,10 +395,10 @@ function targetDisplayName(target) {
 }
 
 function hubIdentityText(hub) {
-  if (!hub) return "Hub PC unknown";
+  if (!hub) return "Using PC unknown";
   const name = hub.name || "unknown";
   const ips = (hub.ipAddresses || []).join(", ") || "no private LAN IP detected";
-  return `Hub PC ${name} | IP ${ips}`;
+  return `Using PC ${name} | IP ${ips}`;
 }
 
 function countHostContainers(target) {
@@ -480,19 +480,28 @@ function formatTime(value) {
 }
 
 function formatTrafficRate(traffic) {
-  const bytesPerSecond = Number(traffic?.bytesPerSecond || 0);
+  const bytesPerSecond = Number(traffic?.peakBytesPerSecond || traffic?.bytesPerSecond || 0);
   return `${formatBytes(bytesPerSecond)}/s`;
 }
 
 function trafficTitle(traffic) {
   const total = Number(traffic?.totalBytes || 0);
   const windowSeconds = Number(traffic?.windowSeconds || 60);
+  const peak = Number(traffic?.peakBytesPerSecond || traffic?.bytesPerSecond || 0);
   const sessions = Number(traffic?.sshSessions || 0);
   const checks = Number(traffic?.portChecks || 0);
-  const parts = [`GridLens estimated traffic: ${formatBytes(total)} over ${windowSeconds}s`];
+  const parts = [`GridLens estimated peak: ${formatBytes(peak)}/s`, `${formatBytes(total)} over ${windowSeconds}s`];
   if (sessions) parts.push(`${sessions} SSH sessions`);
   if (checks) parts.push(`${checks} LAN port checks`);
+  parts.push("local Docker/Podman checks do not add network traffic");
   return parts.join(" | ");
+}
+
+function persistLocalExpanded(event) {
+  const details = event.target.closest?.("[data-local-target]");
+  if (!details) return;
+  state.localPCExpanded = details.open;
+  storageSet("gridlens.localPCExpanded", String(details.open));
 }
 
 function formatBytes(value) {
