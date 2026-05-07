@@ -1,9 +1,13 @@
+const storedScanReport = storageGetJSON("gridlens.scanReport");
+
 const state = {
   monitorLoading: false,
   fleetLoading: false,
   scanning: false,
   savingConfig: false,
   lastReport: null,
+  scanReport: storedScanReport,
+  scanAutoAttempted: storageGet("gridlens.scanAutoAttempted") === "true" || Boolean(storedScanReport),
   config: null,
   targetSort: storageGet("gridlens.targetSort") || "ip",
   activeView: initialView(),
@@ -14,7 +18,7 @@ const state = {
   fleetRows: [],
   fleetSort: storageGet("gridlens.fleetSort") || "pc",
   fleetSortDirection: storageGet("gridlens.fleetSortDirection") || "asc",
-  fleetIPMode: storageGet("gridlens.fleetIPMode") || "compact",
+  fleetIPMode: normalizeFleetIPMode(storageGet("gridlens.fleetIPMode")),
 };
 
 const els = {
@@ -87,7 +91,7 @@ els.fleetTableHead.addEventListener("click", (event) => {
 });
 els.fleetIPToggle.addEventListener("click", (event) => {
   event.stopPropagation();
-  setFleetIPMode(state.fleetIPMode === "full" ? "compact" : "full");
+  setFleetIPMode(nextFleetIPMode());
 });
 els.closeConfigBtn.addEventListener("click", () => els.configDialog.close());
 els.configForm.addEventListener("submit", (event) => {
@@ -106,10 +110,12 @@ window.addEventListener("hashchange", () => activateView(initialView()));
 applyTheme(state.theme);
 updateSortButtons();
 updateFleetIPButtons();
+renderStoredScan();
 activateView(state.activeView);
 
 function activateView(view) {
   state.activeView = view === "fleet" ? "fleet" : "monitor";
+  storageSet("gridlens.activeView", state.activeView);
   const nextHash = `#${state.activeView}`;
   if (location.hash !== nextHash) {
     history.replaceState(null, "", nextHash);
@@ -121,11 +127,12 @@ function activateView(view) {
   document.body.classList.toggle("fleet-active", state.activeView === "fleet");
   els.monitorViewBtn.classList.toggle("active", state.activeView === "monitor");
   els.fleetViewBtn.classList.toggle("active", state.activeView === "fleet");
-  els.scanBtn.hidden = state.activeView !== "monitor";
 
   stopPolling();
   if (state.activeView === "monitor") {
     refresh();
+    renderStoredScan();
+    maybeInitialLANScan();
     state.monitorTimer = setInterval(refresh, 10000);
   } else {
     refreshFleet();
@@ -151,6 +158,8 @@ function refreshActiveView() {
 function initialView() {
   const hashView = location.hash.replace("#", "").trim();
   if (hashView === "fleet" || hashView === "monitor") return hashView;
+  const storedView = storageGet("gridlens.activeView");
+  if (storedView === "fleet" || storedView === "monitor") return storedView;
   return "monitor";
 }
 
@@ -165,6 +174,7 @@ async function refresh() {
     const report = await getJSON("/api/nosana");
     state.lastReport = report;
     renderReport(report);
+    if (state.scanReport && !state.scanning) renderScan(state.scanReport);
     const hostCount = report.summary.nosanaHosts ?? report.summary.nosanaMatches ?? 0;
     setPill(els.discoveryState, hostCount > 0 ? "Live" : "No hosts", hostCount > 0 ? "ok" : "warn");
   } catch (error) {
@@ -204,11 +214,15 @@ async function scanLAN() {
   if (state.activeView !== "monitor") return;
   if (state.scanning) return;
   state.scanning = true;
+  state.scanAutoAttempted = true;
+  storageSet("gridlens.scanAutoAttempted", "true");
   els.scanBtn.disabled = true;
   setPill(els.scanState, "Scanning", "");
 
   try {
     const report = await getJSON("/api/pc/scan");
+    state.scanReport = report;
+    storageSetJSON("gridlens.scanReport", report);
     renderScan(report);
     setPill(els.scanState, `${report.results?.length || 0} found`, report.results?.length ? "ok" : "muted");
   } catch (error) {
@@ -218,6 +232,28 @@ async function scanLAN() {
     state.scanning = false;
     els.scanBtn.disabled = false;
   }
+}
+
+function maybeInitialLANScan() {
+  if (state.scanReport || state.scanAutoAttempted || state.scanning) return;
+  scanLAN();
+}
+
+function renderStoredScan() {
+  if (state.scanning) return;
+  if (!state.scanReport) {
+    const message = state.scanAutoAttempted
+      ? "No cached LAN scan. Use Scan LAN to run it again."
+      : "LAN scan will run when Monitor first opens.";
+    els.scanResults.innerHTML = `<div class="empty">${escapeHTML(message)}</div>`;
+    els.dimmedScanDetails.hidden = true;
+    setPill(els.scanState, "Idle", "muted");
+    return;
+  }
+
+  renderScan(state.scanReport);
+  const count = state.scanReport.results?.length || 0;
+  setPill(els.scanState, `${count} cached`, count ? "ok" : "muted");
 }
 
 async function getJSON(path, options = {}) {
@@ -328,7 +364,7 @@ function renderFleet(report) {
   const hostText = `${rows.length} host${rows.length === 1 ? "" : "s"}`;
   els.fleetHostCount.textContent = `— ${hostText}`;
   els.fleetUpdatedAt.textContent = `Updated ${formatTime(report.generatedAt)} | ${hubIdentityText(report.hub)}`;
-  document.body.classList.toggle("fleet-ip-full", state.fleetIPMode === "full");
+  applyFleetIPModeClass();
   updateFleetIPButtons();
   updateFleetSortHeaders();
 
@@ -403,7 +439,8 @@ function renderFleetRow(row) {
       <td class="tier">${escapeHTML(row.status)}</td>
       <td class="host">${escapeHTML(row.pc)}</td>
       <td class="ip">
-        <span class="ip-m-compact">${escapeHTML(compactIP(row.ip))}</span>
+        <span class="ip-m-dot">${escapeHTML(dotIP(row.ip))}</span>
+        <span class="ip-m-tail">${escapeHTML(tailIP(row.ip))}</span>
         <span class="ip-m-full">${escapeHTML(row.ip)}</span>
       </td>
       <td class="node-addr">${fleetValue(row.hostAddress, row.containerName)}</td>
@@ -600,15 +637,33 @@ function updateFleetSortHeaders() {
 }
 
 function setFleetIPMode(mode) {
-  state.fleetIPMode = mode === "full" ? "full" : "compact";
+  state.fleetIPMode = normalizeFleetIPMode(mode);
   storageSet("gridlens.fleetIPMode", state.fleetIPMode);
-  document.body.classList.toggle("fleet-ip-full", state.fleetIPMode === "full");
+  applyFleetIPModeClass();
   updateFleetIPButtons();
 }
 
 function updateFleetIPButtons() {
-  els.fleetIPToggle.classList.toggle("active", state.fleetIPMode === "full");
-  els.fleetIPToggle.title = state.fleetIPMode === "full" ? "Show compact IP" : "Show full IP";
+  els.fleetIPToggle.classList.toggle("active", state.fleetIPMode !== "dot");
+  const labels = { full: "192.168.0.101", tail: ".101", dot: "•" };
+  els.fleetIPToggle.title = `IP display: ${labels[state.fleetIPMode]}. Click for ${labels[nextFleetIPMode()]}.`;
+}
+
+function applyFleetIPModeClass() {
+  document.body.classList.toggle("fleet-ip-full", state.fleetIPMode === "full");
+  document.body.classList.toggle("fleet-ip-tail", state.fleetIPMode === "tail");
+}
+
+function nextFleetIPMode() {
+  if (state.fleetIPMode === "dot") return "full";
+  if (state.fleetIPMode === "full") return "tail";
+  return "dot";
+}
+
+function normalizeFleetIPMode(mode) {
+  if (mode === "full" || mode === "tail" || mode === "dot") return mode;
+  if (mode === "compact") return "dot";
+  return "dot";
 }
 
 function setFleetGathering(gathering) {
@@ -761,8 +816,14 @@ function sourceLabel(source, parentName) {
   return value;
 }
 
-function compactIP(ip) {
+function dotIP(ip) {
   return ip ? "•" : "";
+}
+
+function tailIP(ip) {
+  const parts = String(ip || "").split(".");
+  if (parts.length !== 4 || !parts[3]) return "";
+  return `.${parts[3]}`;
 }
 
 function hubIdentityText(hub) {
@@ -895,6 +956,22 @@ function storageGet(key) {
 function storageSet(key, value) {
   try {
     localStorage.setItem(key, value);
+  } catch (_) {}
+}
+
+function storageGetJSON(key) {
+  const value = storageGet(key);
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return null;
+  }
+}
+
+function storageSetJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
   } catch (_) {}
 }
 

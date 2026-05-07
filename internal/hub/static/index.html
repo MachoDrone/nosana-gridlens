@@ -35,7 +35,6 @@
         </div>
         <button id="themeBtn" type="button" title="Switch theme">Light</button>
         <button id="refreshBtn" type="button" title="Refresh now">Refresh</button>
-        <button id="scanBtn" type="button" title="Scan LAN">Scan LAN</button>
         <button id="configBtn" type="button" title="Configure PCs">Config</button>
       </div>
     </header>
@@ -78,7 +77,10 @@
           <section class="panel">
             <div class="panel-head">
               <h2>LAN Candidates</h2>
-              <span id="scanState" class="pill muted">Idle</span>
+              <div class="panel-tools">
+                <button id="scanBtn" type="button" title="Scan LAN">Scan LAN</button>
+                <span id="scanState" class="pill muted">Idle</span>
+              </div>
             </div>
             <div id="scanResults" class="stack compact"></div>
             <details id="dimmedScanDetails" class="dimmed-details" hidden>
@@ -114,13 +116,13 @@
           <table id="fleetTable" class="fleet-table">
             <thead id="fleetTableHead">
               <tr>
-                <th data-col="heartbeat" data-type="num"><div>Monitor HB</div></th>
+                <th data-col="heartbeat" data-type="num" title="Age of the latest GridLens monitor report for this row. The Fleet page polls /api/nosana every 15 seconds while visible."><div>Monitor HB</div></th>
                 <th data-col="status" data-type="string"><div>Status</div></th>
-                <th data-col="pc" data-type="string"><div>PC</div></th>
+                <th data-col="pc" data-type="string" title="PC comes from the target host name when GridLens can read it, otherwise the configured PC name, otherwise the IP address."><div>PC</div></th>
                 <th data-col="ip" data-type="string"><div>IP <span id="fleetIPToggle" class="fleet-header-toggle" title="Toggle IP display">↻</span></div></th>
                 <th data-col="hostAddress" data-type="string"><div class="ml2">Host<br>Address</div></th>
                 <th data-col="sol" data-type="num"><div>SOL</div></th>
-                <th data-col="hostSignal" data-type="string"><div>Host</div></th>
+                <th data-col="hostSignal" data-type="string" title="Green means the matched Nosana host container is reported as running/up by Docker or Podman."><div>Host</div></th>
                 <th data-col="state" data-type="string"><div>State</div></th>
                 <th data-col="latestJob" data-type="string"><div class="ml2">Latest<br>Job</div></th>
                 <th data-col="duration" data-type="string"><div>Duration</div></th>
