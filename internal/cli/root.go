@@ -54,6 +54,10 @@ func (a *App) Run(ctx context.Context, args []string) int {
 		return 0
 	case "deps":
 		return a.runDeps(ctx, args[1:])
+	case "pc":
+		return a.runPC(ctx, args[1:])
+	case "nosana":
+		return a.runNosana(ctx, args[1:])
 	case "setup":
 		return a.runSetup(ctx, args[1:])
 	case "doctor":
@@ -74,6 +78,10 @@ func (a *App) printHelp() {
 	fmt.Fprintln(a.out, "Usage:")
 	fmt.Fprintln(a.out, "  gridlens version")
 	fmt.Fprintln(a.out, "  gridlens deps check [--json]")
+	fmt.Fprintln(a.out, "  gridlens pc scan [--cidr CIDR] [--json]")
+	fmt.Fprintln(a.out, "  gridlens pc add NAME --address IP [--ssh user@host] [--container NAME] [--pattern GLOB]")
+	fmt.Fprintln(a.out, "  gridlens pc list [--json]")
+	fmt.Fprintln(a.out, "  gridlens nosana detect [--json]")
 	fmt.Fprintln(a.out, "  gridlens setup wireguard --dry-run [--json]")
 	fmt.Fprintln(a.out, "  gridlens doctor wireguard [--json]")
 }
