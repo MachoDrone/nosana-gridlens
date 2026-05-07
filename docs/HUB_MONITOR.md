@@ -52,6 +52,16 @@ and 8 Nosana hosts, or 80 PCs and 200 Nosana hosts. Runtime wrapper containers
 are shown as containers but should not inflate the Nosana host count when nested
 Nosana containers are found.
 
+PC rows show both configured PC name and IP address. The operator can sort PCs
+by name or IP address, and the browser persists that sort choice. Containers
+within a PC are ordered with matched Nosana host containers first, then all
+remaining containers alphabetically.
+
+LAN scan candidates that are not configured or do not currently expose a
+Nosana host are dimmed with a short reason, such as missing credentials or no
+Nosana host discovered. The local Hub PC is collapsed when it is not itself a
+Nosana host.
+
 Current limits:
 
 - no login/auth layer yet because the default bind is loopback-only;

@@ -30,8 +30,8 @@
           <strong id="containersSeen">0</strong>
         </article>
         <article class="metric">
-          <span class="label">Runtimes</span>
-          <strong id="runtimesAvailable">0</strong>
+          <span class="label">PCs</span>
+          <strong id="pcCount">0</strong>
         </article>
         <article class="metric">
           <span class="label">Targets</span>
@@ -43,7 +43,13 @@
         <section class="panel">
           <div class="panel-head">
             <h2>Hosts</h2>
-            <span id="discoveryState" class="pill">Loading</span>
+            <div class="panel-tools">
+              <div class="segmented" aria-label="Sort PCs">
+                <button id="sortNameBtn" type="button" data-sort="name">Name</button>
+                <button id="sortIPBtn" type="button" data-sort="ip">IP</button>
+              </div>
+              <span id="discoveryState" class="pill">Loading</span>
+            </div>
           </div>
           <div id="targets" class="stack"></div>
         </section>

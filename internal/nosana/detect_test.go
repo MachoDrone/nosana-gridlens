@@ -50,6 +50,9 @@ func TestDetectLocalDockerAndNestedPodman(t *testing.T) {
 	if report.Summary.NosanaMatches != 1 {
 		t.Fatalf("expected one Nosana match, got %+v", report.Summary)
 	}
+	if report.Summary.PCCount != 1 {
+		t.Fatalf("expected local PC to count when it has a Nosana host, got %+v", report.Summary)
+	}
 }
 
 func TestDetectDemotesPodmanRuntimeWrapperWhenNestedNosanaMatches(t *testing.T) {
@@ -159,5 +162,33 @@ func TestDetectScalesToTwoHundredConfiguredHosts(t *testing.T) {
 	}
 	if report.Summary.NosanaHosts != 200 || report.Summary.NosanaMatches != 200 {
 		t.Fatalf("expected 200 Nosana hosts, got %+v", report.Summary)
+	}
+	if report.Summary.PCCount != 200 {
+		t.Fatalf("expected 200 configured PCs, got %+v", report.Summary)
+	}
+}
+
+func TestDetectSortsNosanaContainersBeforeOtherContainers(t *testing.T) {
+	runner := execx.NewFakeRunner()
+	runner.SetPath("podman", "/usr/bin/podman")
+	runner.SetResult("podman", []string{"ps", "--format", "json"}, execx.Result{
+		ExitCode: 0,
+		Stdout: `[
+			{"Id":"2","Names":["z-worker"],"Image":"worker","Status":"running"},
+			{"Id":"1","Names":["nosana-node"],"Image":"nosana/node","Status":"running"},
+			{"Id":"3","Names":["a-helper"],"Image":"helper","Status":"running"}
+		]`,
+	})
+
+	report := Detect(context.Background(), runner, config.Default(), Options{
+		Now: time.Unix(0, 0),
+	})
+
+	containers := report.Targets[0].Runtimes[1].Containers
+	if got := containers[0].Name; got != "nosana-node" {
+		t.Fatalf("expected nosana-node first, got %s", got)
+	}
+	if got := containers[1].Name; got != "a-helper" {
+		t.Fatalf("expected remaining containers alphabetically, got %s", got)
 	}
 }

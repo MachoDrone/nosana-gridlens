@@ -179,6 +179,36 @@ main {
   margin-bottom: 12px;
 }
 
+.panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.segmented {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.segmented button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--line);
+}
+
+.segmented button.active {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
 .stack {
   display: grid;
   gap: 10px;
@@ -191,6 +221,29 @@ main {
 .target,
 .candidate {
   padding: 12px;
+}
+
+.target-collapsed summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.target-collapsed summary::-webkit-details-marker {
+  display: none;
+}
+
+.target-collapsed[open] summary {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dimmed {
+  opacity: 0.58;
 }
 
 .target-head,
