@@ -51,6 +51,41 @@ func TestDetectLocalDockerAndNestedPodman(t *testing.T) {
 	}
 }
 
+func TestDetectDemotesPodmanRuntimeWrapperWhenNestedNosanaMatches(t *testing.T) {
+	runner := execx.NewFakeRunner()
+	runner.SetPath("docker", "/usr/bin/docker")
+	runner.SetResult("docker", []string{"ps", "--format", "{{json .}}"}, execx.Result{
+		ExitCode: 0,
+		Stdout:   `{"ID":"abc123","Names":"podman-gpu0","Image":"nosana/podman:v1.1.0","Status":"Up 2 hours"}`,
+	})
+	runner.SetResult("docker", []string{"exec", "abc123", "sh", "-lc", "command -v podman >/dev/null 2>&1 && podman ps --format json || true"}, execx.Result{
+		ExitCode: 0,
+		Stdout:   `[{"Id":"nested1","Names":["nosana-node"],"Image":"nosana/nosana-node","Status":"running"}]`,
+	})
+
+	cfg := config.Default()
+	cfg.DefaultContainerPatterns = []string{"nosana-node", "podman-*"}
+	report := Detect(context.Background(), runner, cfg, Options{
+		IncludeNested: true,
+		Now:           time.Unix(0, 0),
+	})
+
+	if report.Summary.ContainersSeen != 2 {
+		t.Fatalf("expected wrapper and nested container, got %+v", report.Summary)
+	}
+	if report.Summary.NosanaMatches != 1 {
+		t.Fatalf("expected only nested nosana-node to count as host, got %+v", report.Summary)
+	}
+
+	wrapper := report.Targets[0].Runtimes[0].Containers[0]
+	if wrapper.Matched {
+		t.Fatalf("runtime wrapper should not be counted as Nosana host: %+v", wrapper)
+	}
+	if !wrapper.Nested[0].Matched {
+		t.Fatalf("nested nosana-node should still match: %+v", wrapper.Nested[0])
+	}
+}
+
 func TestConfiguredPCWithSSHUsesManualContainerNames(t *testing.T) {
 	runner := execx.NewFakeRunner()
 	runner.SetPath("ssh", "/usr/bin/ssh")
