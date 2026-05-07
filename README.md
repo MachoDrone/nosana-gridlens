@@ -33,6 +33,8 @@ go run ./cmd/gridlens version
 go run ./cmd/gridlens deps check
 go run ./cmd/gridlens setup wireguard --dry-run
 go run ./cmd/gridlens doctor wireguard --json
+go run ./cmd/gridlens pc scan --json
+go run ./cmd/gridlens nosana detect --json
 ```
 
 ## Remote Access Reality
@@ -50,7 +52,23 @@ access can always work automatically.
 
 ## Nosana Data
 
-GridLens should use real local Nosana host data, not mock fleet data. This
-initial phase does not include the Hub UI or Nosana telemetry collectors yet;
-those should be added as read-only live discovery and monitoring in a later
-phase after the WireGuard safety foundation is in place.
+GridLens uses real discovery, not mock fleet data.
+
+Current discovery commands:
+
+```bash
+gridlens pc scan
+gridlens pc add nodebox --address 192.168.0.167 --ssh grid@192.168.0.167 --container custom-host-a
+gridlens pc list
+gridlens nosana detect
+```
+
+`pc scan` actively probes selected TCP ports on local `/24` networks or a CIDR
+you provide. It defaults to ports `22`, `2375`, and `2376` so GridLens can find
+SSH candidates and exposed Docker API candidates without requiring privileged
+operations.
+
+`nosana detect` inspects local Docker, local Podman, configured SSH PCs, and
+Podman nested inside Docker containers using read-only status commands. Manual
+PC/container config exists because Nosana host container names can be customized
+and one PC may run multiple Nosana hosts.
