@@ -110,7 +110,6 @@ activateView(state.activeView);
 
 function activateView(view) {
   state.activeView = view === "fleet" ? "fleet" : "monitor";
-  storageSet("gridlens.activeView", state.activeView);
   const nextHash = `#${state.activeView}`;
   if (location.hash !== nextHash) {
     history.replaceState(null, "", nextHash);
@@ -152,7 +151,7 @@ function refreshActiveView() {
 function initialView() {
   const hashView = location.hash.replace("#", "").trim();
   if (hashView === "fleet" || hashView === "monitor") return hashView;
-  return storageGet("gridlens.activeView") || "monitor";
+  return "monitor";
 }
 
 async function refresh() {
