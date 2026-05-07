@@ -57,10 +57,15 @@ const els = {
   fleetHostCount: document.querySelector("#fleetHostCount"),
   fleetUpdatedAt: document.querySelector("#fleetUpdatedAt"),
   fleetState: document.querySelector("#fleetState"),
+  fleetMonitorBtn: document.querySelector("#fleetMonitorBtn"),
+  fleetRefreshBtn: document.querySelector("#fleetRefreshBtn"),
+  fleetConfigBtn: document.querySelector("#fleetConfigBtn"),
+  fleetSortResetBtn: document.querySelector("#fleetSortResetBtn"),
+  fleetGatherBar: document.querySelector("#fleetGatherBar"),
+  fleetGatherFill: document.querySelector("#fleetGatherFill"),
   fleetTableHead: document.querySelector("#fleetTableHead"),
   fleetRows: document.querySelector("#fleetRows"),
-  fleetIPCompactBtn: document.querySelector("#fleetIPCompactBtn"),
-  fleetIPFullBtn: document.querySelector("#fleetIPFullBtn"),
+  fleetIPToggle: document.querySelector("#fleetIPToggle"),
 };
 
 els.monitorViewBtn.addEventListener("click", () => activateView("monitor"));
@@ -69,6 +74,10 @@ els.themeBtn.addEventListener("click", () => toggleTheme());
 els.refreshBtn.addEventListener("click", () => refreshActiveView());
 els.scanBtn.addEventListener("click", () => scanLAN());
 els.configBtn.addEventListener("click", () => openConfig());
+els.fleetMonitorBtn.addEventListener("click", () => activateView("monitor"));
+els.fleetRefreshBtn.addEventListener("click", () => refreshFleet());
+els.fleetConfigBtn.addEventListener("click", () => openConfig());
+els.fleetSortResetBtn.addEventListener("click", () => resetFleetSort());
 els.sortNameBtn.addEventListener("click", () => setTargetSort("name"));
 els.sortIPBtn.addEventListener("click", () => setTargetSort("ip"));
 els.targets.addEventListener("toggle", persistLocalExpanded, true);
@@ -76,8 +85,10 @@ els.fleetTableHead.addEventListener("click", (event) => {
   const header = event.target.closest("th[data-col]");
   if (header) setFleetSort(header.dataset.col, header.dataset.type || "string");
 });
-els.fleetIPCompactBtn.addEventListener("click", () => setFleetIPMode("compact"));
-els.fleetIPFullBtn.addEventListener("click", () => setFleetIPMode("full"));
+els.fleetIPToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setFleetIPMode(state.fleetIPMode === "full" ? "compact" : "full");
+});
 els.closeConfigBtn.addEventListener("click", () => els.configDialog.close());
 els.configForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -107,6 +118,8 @@ function activateView(view) {
 
   els.monitorView.hidden = state.activeView !== "monitor";
   els.fleetView.hidden = state.activeView !== "fleet";
+  document.documentElement.classList.toggle("fleet-active", state.activeView === "fleet");
+  document.body.classList.toggle("fleet-active", state.activeView === "fleet");
   els.monitorViewBtn.classList.toggle("active", state.activeView === "monitor");
   els.fleetViewBtn.classList.toggle("active", state.activeView === "fleet");
   els.scanBtn.hidden = state.activeView !== "monitor";
@@ -170,6 +183,7 @@ async function refreshFleet() {
   state.fleetLoading = true;
   els.refreshBtn.disabled = true;
   setPill(els.fleetState, "Loading", "");
+  setFleetGathering(true);
 
   try {
     const report = await getJSON("/api/nosana");
@@ -178,9 +192,10 @@ async function refreshFleet() {
     const hostCount = state.fleetRows.length;
     setPill(els.fleetState, hostCount > 0 ? "Live" : "No hosts", hostCount > 0 ? "ok" : "warn");
   } catch (error) {
-    els.fleetRows.innerHTML = `<tr><td colspan="11"><div class="error-text">${escapeHTML(error.message)}</div></td></tr>`;
+    els.fleetRows.innerHTML = `<tr><td colspan="27"><div class="error-text">${escapeHTML(error.message)}</div></td></tr>`;
     setPill(els.fleetState, "Error", "error");
   } finally {
+    setFleetGathering(false);
     state.fleetLoading = false;
     els.refreshBtn.disabled = false;
   }
@@ -312,14 +327,14 @@ function renderFleet(report) {
   state.fleetRows = collectFleetRows(report);
   const rows = sortedFleetRows();
   const hostText = `${rows.length} host${rows.length === 1 ? "" : "s"}`;
-  els.fleetHostCount.textContent = hostText;
+  els.fleetHostCount.textContent = `— ${hostText}`;
   els.fleetUpdatedAt.textContent = `Updated ${formatTime(report.generatedAt)} | ${hubIdentityText(report.hub)}`;
   document.body.classList.toggle("fleet-ip-full", state.fleetIPMode === "full");
   updateFleetIPButtons();
   updateFleetSortHeaders();
 
   if (!rows.length) {
-    els.fleetRows.innerHTML = `<tr><td colspan="11"><div class="empty">No Nosana hosts discovered.</div></td></tr>`;
+    els.fleetRows.innerHTML = `<tr><td colspan="27"><div class="empty">No Nosana hosts discovered.</div></td></tr>`;
     return;
   }
 
@@ -343,14 +358,34 @@ function collectFleetRowsFromContainer(rows, report, target, runtime, container,
     const running = containerIsRunning(container);
     rows.push({
       heartbeat: 0,
-      status: running ? "live" : "check",
+      status: "?",
       pc: targetDisplayName(target),
       ip: target.address || "",
-      host: container.name || container.id || "",
+      hostAddress: "",
+      sol: "",
+      hostSignal: running ? "live" : "check",
+      state: running ? "RUNNING" : "CHECK",
+      latestJob: "",
+      duration: containerUptime(container.status),
+      queued: "",
+      ram: "",
+      disk: "",
+      dl: "",
+      ul: "",
+      ping: "",
+      stakedNos: "",
+      rewards: "",
+      nos: "",
+      market: "",
+      gpuID: "",
+      currentNode: imageTag(container.image),
+      cuda: "",
+      nvidia: "",
+      cpu: "",
+      system: "",
+      containerName: container.name || container.id || "",
       runtime: runtimePath,
-      state: container.status || "",
       image: container.image || "",
-      node: imageTag(container.image),
       id: shortID(container.id),
       source: sourceLabel(container.source, parentName),
       running,
@@ -363,24 +398,37 @@ function collectFleetRowsFromContainer(rows, report, target, runtime, container,
 }
 
 function renderFleetRow(row) {
-  const statusClass = row.running ? "ok" : "warn";
-  const statusText = row.running ? "live" : "check";
   return `
     <tr>
       <td class="seen" data-sort="${row.heartbeat}">${escapeHTML(fleetHeartbeat(row.generatedAt))}</td>
-      <td><span class="fleet-status ${statusClass}">${escapeHTML(statusText)}</span></td>
+      <td class="tier">${escapeHTML(row.status)}</td>
       <td class="host">${escapeHTML(row.pc)}</td>
       <td class="ip">
         <span class="ip-m-compact">${escapeHTML(compactIP(row.ip))}</span>
         <span class="ip-m-full">${escapeHTML(row.ip)}</span>
       </td>
-      <td class="node-addr">${escapeHTML(row.host)}</td>
-      <td class="fleet-muted">${escapeHTML(row.runtime)}</td>
-      <td class="fleet-muted">${escapeHTML(row.state)}</td>
-      <td class="fleet-muted">${escapeHTML(row.image)}</td>
-      <td class="ver">${escapeHTML(row.node)}</td>
-      <td class="fleet-muted">${escapeHTML(row.id)}</td>
-      <td class="fleet-muted">${escapeHTML(row.source)}</td>
+      <td class="node-addr">${fleetValue(row.hostAddress, row.containerName)}</td>
+      <td class="sol">${fleetValue(row.sol)}</td>
+      <td class="host-signal">${fleetHostSignal(row)}</td>
+      <td class="state">${escapeHTML(row.state)}</td>
+      <td class="running-job">${fleetValue(row.latestJob)}</td>
+      <td class="dur">${fleetDuration(row.duration)}</td>
+      <td class="q">${fleetValue(row.queued)}</td>
+      <td class="ram">${fleetValue(row.ram)}</td>
+      <td class="disk">${fleetValue(row.disk)}</td>
+      <td class="dl">${fleetValue(row.dl)}</td>
+      <td class="ul">${fleetValue(row.ul)}</td>
+      <td class="ping">${fleetValue(row.ping)}</td>
+      <td class="stakedNos">${fleetValue(row.stakedNos)}</td>
+      <td class="rewards">${fleetValue(row.rewards)}</td>
+      <td class="nos">${fleetValue(row.nos)}</td>
+      <td class="gpu">${fleetValue(row.market)}</td>
+      <td class="gpuid">${fleetValue(row.gpuID)}</td>
+      <td class="ver">${fleetVersion(row.currentNode)}</td>
+      <td class="cuda">${fleetValue(row.cuda)}</td>
+      <td class="nvidia-drv">${fleetValue(row.nvidia)}</td>
+      <td class="cpu">${fleetValue(row.cpu)}</td>
+      <td class="sysenv">${fleetValue(row.system)}</td>
     </tr>
   `;
 }
@@ -510,6 +558,15 @@ function setFleetSort(column, type) {
   els.fleetRows.innerHTML = sortedFleetRows().map(renderFleetRow).join("");
 }
 
+function resetFleetSort() {
+  state.fleetSort = "pc";
+  state.fleetSortDirection = "asc";
+  storageSet("gridlens.fleetSort", state.fleetSort);
+  storageSet("gridlens.fleetSortDirection", state.fleetSortDirection);
+  updateFleetSortHeaders();
+  els.fleetRows.innerHTML = sortedFleetRows().map(renderFleetRow).join("");
+}
+
 function sortedFleetRows() {
   const rows = [...state.fleetRows];
   rows.sort((a, b) => {
@@ -523,7 +580,7 @@ function sortedFleetRows() {
     }
     if (result === 0) {
       result = String(a.pc).localeCompare(String(b.pc), undefined, { numeric: true, sensitivity: "base" }) ||
-        String(a.host).localeCompare(String(b.host), undefined, { numeric: true, sensitivity: "base" });
+        String(a.containerName).localeCompare(String(b.containerName), undefined, { numeric: true, sensitivity: "base" });
     }
     return state.fleetSortDirection === "desc" ? -result : result;
   });
@@ -551,8 +608,12 @@ function setFleetIPMode(mode) {
 }
 
 function updateFleetIPButtons() {
-  els.fleetIPCompactBtn.classList.toggle("active", state.fleetIPMode === "compact");
-  els.fleetIPFullBtn.classList.toggle("active", state.fleetIPMode === "full");
+  els.fleetIPToggle.classList.toggle("active", state.fleetIPMode === "full");
+  els.fleetIPToggle.title = state.fleetIPMode === "full" ? "Show compact IP" : "Show full IP";
+}
+
+function setFleetGathering(gathering) {
+  els.fleetGatherBar.classList.toggle("gathering", gathering);
 }
 
 function toggleTheme() {
@@ -638,6 +699,41 @@ function containerIsRunning(container) {
   return status.includes("up") || status.includes("running");
 }
 
+function containerUptime(status) {
+  const value = String(status || "");
+  const match = value.match(/up\s+(.+)/i);
+  return match ? match[1] : "";
+}
+
+function fleetValue(value, label) {
+  const text = String(value ?? "").trim();
+  if (text) return escapeHTML(text);
+  const title = label ? `Not collected yet. Container: ${label}` : "Not collected yet";
+  return `<span class="not-collected" title="${escapeHTML(title)}">-</span>`;
+}
+
+function fleetHostSignal(row) {
+  if (row.running) return `<span class="fleet-host-dot" title="${escapeHTML(row.containerName)}"></span>`;
+  return `<span class="not-collected" title="Container state needs attention">!</span>`;
+}
+
+function fleetDuration(value) {
+  if (!value) return fleetValue("");
+  return `
+    <span class="dur-mode dur-m-bar" title="${escapeHTML(value)}">
+      <span class="dur-bar"><span class="dur-fill"></span></span>
+    </span>
+    <span class="dur-mode dur-m-text">${escapeHTML(value)}</span>
+  `;
+}
+
+function fleetVersion(value) {
+  const text = String(value || "").trim();
+  if (!text) return fleetValue("");
+  const className = text.includes("rc") ? "version-rc" : text === "latest" ? "version-latest" : "version-ok";
+  return `<span class="${className}">${escapeHTML(text)}</span>`;
+}
+
 function fleetHeartbeat(generatedAt) {
   if (!generatedAt) return "";
   const date = new Date(generatedAt);
@@ -667,8 +763,7 @@ function sourceLabel(source, parentName) {
 }
 
 function compactIP(ip) {
-  const parts = String(ip || "").split(".");
-  return parts.length === 4 ? parts[3] : ip;
+  return ip ? "•" : "";
 }
 
 function hubIdentityText(hub) {

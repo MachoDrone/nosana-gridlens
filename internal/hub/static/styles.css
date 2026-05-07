@@ -53,8 +53,42 @@ body {
   letter-spacing: 0;
 }
 
+body.fleet-active {
+  background: #111111;
+  color: #e0e0e0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+}
+
+body.fleet-active .topbar {
+  display: none;
+}
+
+body.fleet-active main {
+  width: 100%;
+  margin: 0;
+  padding: 14px 20px 32px;
+}
+
+body.fleet-active button {
+  min-height: 0;
+  border-color: #15803d;
+  background: #111111;
+  color: #15803d;
+  font-family: inherit;
+}
+
+body.fleet-active button:hover {
+  background: #1a1a1a;
+  border-color: #16a34a;
+}
+
 html {
   background: var(--bg);
+}
+
+html.fleet-active {
+  background: #111111;
 }
 
 .topbar {
@@ -546,25 +580,116 @@ label span {
   min-width: 0;
 }
 
-.fleet-topline {
+.fleet-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 10px;
 }
 
+.fleet-title-row h2 {
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
 .fleet-count {
-  color: var(--green);
+  color: #00a040;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.fleet-legend,
+.fleet-gather-text,
+.fleet-updated {
+  color: #888888;
+  font-size: 16px;
+}
+
+.fleet-updated {
+  margin-top: 3px;
   font-size: 13px;
-  font-weight: 650;
+}
+
+.fleet-legend {
+  margin-top: 14px;
+}
+
+.fleet-reset {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 1px 3px;
+  border: 0;
+  border-radius: 2px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+body.fleet-active .fleet-reset {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.fleet-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.fleet-actions button {
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.fleet-gather {
+  width: min(720px, 100%);
+  margin: 55px 0 8px;
+}
+
+.fleet-gather-track {
+  height: 4px;
+  position: relative;
+}
+
+.fleet-gather-fill {
+  position: absolute;
+  left: 50%;
+  width: 0%;
+  height: 100%;
+  border-radius: 4px;
+  background: #4ade80;
+  transform: translateX(-50%);
+}
+
+.fleet-gather.gathering .fleet-gather-fill {
+  animation: fleetGather 2.8s ease-in-out infinite;
+}
+
+@keyframes fleetGather {
+  0% {
+    width: 0%;
+  }
+  50% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
 }
 
 .fleet-table-wrap {
   overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .fleet-table {
@@ -575,35 +700,31 @@ label span {
 
 .fleet-table th,
 .fleet-table td {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid #2a2a2a;
   padding: 6px 8px;
   text-align: center;
   white-space: nowrap;
 }
 
 .fleet-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.025);
-}
-
-:root[data-theme="light"] .fleet-table tbody tr:nth-child(even) {
-  background: rgba(24, 32, 42, 0.035);
+  background: #171717;
 }
 
 .fleet-table th {
   position: sticky;
   top: 0;
   z-index: 2;
-  height: 82px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 10px;
+  height: 108px;
+  background: #111111;
+  color: #aaaaaa;
+  font-size: 16px;
   user-select: none;
   vertical-align: bottom;
 }
 
 .fleet-table th div {
   position: absolute;
-  bottom: 4px;
+  bottom: 2px;
   left: calc(50% - 5px);
   transform: rotate(-90deg);
   transform-origin: 0 0;
@@ -612,7 +733,15 @@ label span {
 }
 
 .fleet-table th div.ml2 {
-  bottom: -9px;
+  bottom: -13px;
+  left: calc(50% - 12px);
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+}
+
+.fleet-table th div.ml3 {
+  bottom: -26px;
   left: calc(50% - 12px);
   line-height: 1.3;
   text-align: left;
@@ -621,13 +750,13 @@ label span {
 
 .fleet-table th:hover,
 .fleet-table th.active {
-  color: var(--text);
+  color: #ffffff;
 }
 
 .fleet-table th.active div::before {
   content: "▲";
   margin-right: 4px;
-  color: var(--green);
+  color: #4ade80;
   font-size: 8px;
 }
 
@@ -636,46 +765,120 @@ label span {
 }
 
 .fleet-table td {
-  color: var(--muted);
-  font-size: 12px;
+  height: 53px;
+  color: #888888;
+  font-size: 18px;
 }
 
-.fleet-table td.host,
-.fleet-table td.node-addr {
-  color: var(--text);
+.fleet-table td.host {
+  color: #ffffff;
   font-weight: 700;
   text-align: left;
 }
 
-.fleet-muted {
-  color: var(--muted);
-  font-size: 11px;
+.fleet-table td.node-addr {
+  color: #60a5fa;
+  font-weight: 700;
+  text-align: left;
 }
 
-.fleet-status {
-  display: inline-block;
-  min-width: 42px;
-  border-radius: 999px;
-  padding: 3px 7px;
-  font-size: 11px;
-  font-weight: 750;
+.fleet-table .seen {
+  color: #ff4444;
+  font-size: 18px;
+  font-weight: 800;
 }
 
-.fleet-status.ok {
-  background: var(--green-soft);
-  color: var(--green);
+.fleet-table .tier,
+.fleet-table .q,
+.fleet-table .ram,
+.fleet-table .disk,
+.fleet-table .dl,
+.fleet-table .ul,
+.fleet-table .ping,
+.fleet-table .gpuid,
+.fleet-table .cuda,
+.fleet-table .nvidia-drv,
+.fleet-table .cpu,
+.fleet-table .sysenv {
+  color: #888888;
 }
 
-.fleet-status.warn {
-  background: var(--amber-soft);
-  color: var(--amber);
+.fleet-table .sol {
+  color: #7c3aed;
 }
 
-.fleet-table .seen,
-.fleet-table .ip,
+.fleet-table .state,
+.fleet-table .running-job {
+  color: #60a5fa;
+}
+
+.fleet-table .stakedNos,
+.fleet-table .rewards,
+.fleet-table .nos {
+  color: #00983d;
+}
+
+.fleet-table .gpu {
+  color: #888888;
+  min-width: 150px;
+}
+
 .fleet-table .ver {
-  color: var(--muted);
-  font-size: 11px;
+  font-weight: 800;
+}
+
+.version-ok,
+.version-latest {
+  color: #f59e0b;
+}
+
+.version-rc {
+  color: #ec4899;
+}
+
+.not-collected {
+  color: #555555;
+}
+
+.fleet-header-toggle {
+  color: #9cc8db;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.fleet-host-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 9px rgba(74, 222, 128, 0.65);
+}
+
+.dur-bar {
+  display: inline-block;
+  width: 46px;
+  height: 12px;
+  overflow: hidden;
+  vertical-align: middle;
+  border-radius: 4px;
+  background: #333333;
+}
+
+.dur-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background: #ef4444;
+}
+
+.dur-m-text {
+  display: none;
+}
+
+.fleet-table .ip-m-compact {
+  color: #8b7d6b;
 }
 
 .fleet-table .ip-m-full {
@@ -709,7 +912,7 @@ body.fleet-ip-full .fleet-table .ip-m-full {
     grid-template-columns: 1fr;
   }
 
-  .fleet-topline {
+  .fleet-title-row {
     align-items: flex-start;
     flex-direction: column;
   }
