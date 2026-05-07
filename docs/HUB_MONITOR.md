@@ -53,14 +53,20 @@ are shown as containers but should not inflate the Nosana host count when nested
 Nosana containers are found.
 
 PC rows show both configured PC name and IP address. The operator can sort PCs
-by name or IP address, and the browser persists that sort choice. Containers
-within a PC are ordered with matched Nosana host containers first, then all
-remaining containers alphabetically.
+by name or IP address, and the browser persists that sort choice. When SSH is
+configured, GridLens reads the remote hostname and uses it as the visible PC
+name, while keeping the generated/configured name as metadata.
+
+Containers within a PC are ordered with matched Nosana host containers first,
+then all remaining containers alphabetically.
 
 LAN scan candidates that are not configured or do not currently expose a
 Nosana host are dimmed with a short reason, such as missing credentials or no
-Nosana host discovered. The local Hub PC is collapsed when it is not itself a
-Nosana host.
+Nosana host discovered. Dimmed candidates are collapsed by default. The local
+Hub PC is collapsed when it is not itself a Nosana host. If it is a Nosana host,
+it is included in the normal sorted PC list.
+
+The Hub PC name and local IP address are displayed under the update timestamp.
 
 Current limits:
 

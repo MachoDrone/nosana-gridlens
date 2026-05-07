@@ -3,6 +3,7 @@ package nosana
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -10,13 +11,20 @@ import (
 
 	"github.com/MachoDrone/nosana-gridlens/internal/config"
 	"github.com/MachoDrone/nosana-gridlens/internal/execx"
+	"github.com/MachoDrone/nosana-gridlens/internal/network"
 )
 
 type Report struct {
 	GeneratedAt time.Time      `json:"generatedAt"`
 	ConfigPath  string         `json:"configPath,omitempty"`
+	Hub         HubInfo        `json:"hub"`
 	Targets     []TargetReport `json:"targets"`
 	Summary     Summary        `json:"summary"`
+}
+
+type HubInfo struct {
+	Name        string   `json:"name,omitempty"`
+	IPAddresses []string `json:"ipAddresses,omitempty"`
 }
 
 type Summary struct {
@@ -30,6 +38,7 @@ type Summary struct {
 
 type TargetReport struct {
 	Name       string          `json:"name"`
+	HostName   string          `json:"hostName,omitempty"`
 	Scope      string          `json:"scope"`
 	Address    string          `json:"address,omitempty"`
 	SSHTarget  string          `json:"sshTarget,omitempty"`
@@ -59,6 +68,7 @@ func Detect(ctx context.Context, runner execx.Runner, cfg config.Config, opts Op
 	report := Report{
 		GeneratedAt: opts.Now.UTC(),
 		ConfigPath:  opts.ConfigPath,
+		Hub:         localHubInfo(),
 	}
 
 	maxTargets := opts.MaxConcurrentTargets
@@ -96,7 +106,11 @@ func Detect(ctx context.Context, runner execx.Runner, cfg config.Config, opts Op
 }
 
 func detectLocal(ctx context.Context, runner execx.Runner, matcher Matcher, includeNested bool) TargetReport {
-	target := TargetReport{Name: "local", Scope: "local"}
+	hub := localHubInfo()
+	target := TargetReport{Name: "local", HostName: hub.Name, Scope: "local"}
+	if len(hub.IPAddresses) > 0 {
+		target.Address = hub.IPAddresses[0]
+	}
 	target.Runtimes = append(target.Runtimes, detectLocalRuntime(ctx, runner, "docker", matcher, includeNested))
 	target.Runtimes = append(target.Runtimes, detectLocalRuntime(ctx, runner, "podman", matcher, false))
 	return target
@@ -125,6 +139,7 @@ func detectPC(ctx context.Context, runner execx.Runner, pc config.PC, defaults [
 		ExactNames: pc.ContainerNames,
 		Patterns:   append(append([]string{}, defaults...), pc.ContainerPatterns...),
 	}
+	target.HostName = detectRemoteHostname(ctx, runner, pc.SSHTarget)
 	for _, runtimeName := range runtimesForPC(pc) {
 		target.Runtimes = append(target.Runtimes, detectRemoteRuntime(ctx, runner, pc.SSHTarget, runtimeName, matcher, includeNested, maxNested))
 	}
@@ -241,6 +256,20 @@ func remoteRuntimeCommand(runtimeName string) string {
 	default:
 		return ""
 	}
+}
+
+func detectRemoteHostname(ctx context.Context, runner execx.Runner, sshTarget string) string {
+	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, "hostname -s 2>/dev/null || hostname"}
+	result := runner.Run(ctx, "ssh", args...)
+	if !result.OK() {
+		return ""
+	}
+	return strings.TrimSpace(strings.Split(result.Stdout, "\n")[0])
+}
+
+func localHubInfo() HubInfo {
+	name, _ := os.Hostname()
+	return HubInfo{Name: name, IPAddresses: network.LocalIPv4Addresses()}
 }
 
 func parseRuntimeOutput(runtimeName string, source string, output string, matcher Matcher) ([]Container, error) {

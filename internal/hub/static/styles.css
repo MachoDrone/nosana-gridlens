@@ -62,7 +62,8 @@ h2 {
   font-weight: 720;
 }
 
-#updatedAt {
+#updatedAt,
+#hubIdentity {
   margin-top: 5px;
   color: var(--muted);
   font-size: 13px;
@@ -244,6 +245,32 @@ main {
 
 .dimmed {
   opacity: 0.58;
+}
+
+.dimmed-details {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.dimmed-details[hidden] {
+  display: none;
+}
+
+.dimmed-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+  list-style: none;
+}
+
+.dimmed-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.dimmed-details .stack {
+  margin-top: 10px;
 }
 
 .target-head,
