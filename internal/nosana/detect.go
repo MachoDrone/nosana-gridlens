@@ -3,6 +3,7 @@ package nosana
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ type Report struct {
 }
 
 type Summary struct {
+	PCCount           int `json:"pcCount"`
 	TargetsScanned    int `json:"targetsScanned"`
 	RuntimesAvailable int `json:"runtimesAvailable"`
 	ContainersSeen    int `json:"containersSeen"`
@@ -195,6 +197,7 @@ func detectLocalRuntime(ctx context.Context, runner execx.Runner, runtimeName st
 		addNestedPodman(ctx, runner, "local", containers, matcher)
 		demoteRuntimeWrappers(containers)
 	}
+	sortContainers(containers)
 	report.Containers = containers
 	return report
 }
@@ -224,6 +227,7 @@ func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget str
 		addRemoteNestedPodman(ctx, runner, sshTarget, containers, matcher, maxNested)
 		demoteRuntimeWrappers(containers)
 	}
+	sortContainers(containers)
 	report.Containers = containers
 	return report
 }
@@ -326,10 +330,17 @@ func hasNestedMatch(container Container) bool {
 	return false
 }
 
+func containerHasMatch(container Container) bool {
+	return container.Matched || hasNestedMatch(container)
+}
+
 func summarize(targets []TargetReport) Summary {
 	var summary Summary
 	summary.TargetsScanned = len(targets)
 	for _, target := range targets {
+		if target.Scope == "configured" || (target.Scope == "local" && targetHasNosanaHost(target)) {
+			summary.PCCount++
+		}
 		for _, runtimeReport := range target.Runtimes {
 			if runtimeReport.Available {
 				summary.RuntimesAvailable++
@@ -340,6 +351,36 @@ func summarize(targets []TargetReport) Summary {
 		}
 	}
 	return summary
+}
+
+func targetHasNosanaHost(target TargetReport) bool {
+	for _, runtimeReport := range target.Runtimes {
+		for _, container := range runtimeReport.Containers {
+			if containerHasMatch(container) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func sortContainers(containers []Container) {
+	for i := range containers {
+		sortContainers(containers[i].Nested)
+	}
+	sort.SliceStable(containers, func(i, j int) bool {
+		iRelevant := containers[i].Matched || hasNestedMatch(containers[i])
+		jRelevant := containers[j].Matched || hasNestedMatch(containers[j])
+		if iRelevant != jRelevant {
+			return iRelevant
+		}
+		iName := strings.ToLower(containers[i].Name)
+		jName := strings.ToLower(containers[j].Name)
+		if iName == jName {
+			return containers[i].ID < containers[j].ID
+		}
+		return iName < jName
+	})
 }
 
 func addContainerSummary(summary *Summary, container Container) {
