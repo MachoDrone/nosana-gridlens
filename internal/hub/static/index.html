@@ -3,7 +3,22 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark light">
     <title>GridLens Monitor</title>
+    <script>
+      (() => {
+        let theme = "dark";
+        try {
+          theme = localStorage.getItem("gridlens.theme") || "dark";
+        } catch (_) {}
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+    <style>
+      html { background: #0b1118; color: #e8eef6; color-scheme: dark; }
+      html[data-theme="light"] { background: #f6f7f9; color: #18202a; color-scheme: light; }
+    </style>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -14,6 +29,7 @@
         <p id="hubIdentity">Hub PC loading</p>
       </div>
       <div class="toolbar">
+        <button id="themeBtn" type="button" title="Switch theme">Light</button>
         <button id="refreshBtn" type="button" title="Refresh now">Refresh</button>
         <button id="scanBtn" type="button" title="Scan LAN">Scan LAN</button>
         <button id="configBtn" type="button" title="Configure PCs">Config</button>
@@ -32,10 +48,13 @@
         </article>
         <article class="metric">
           <span class="label">PCs</span>
-          <strong id="pcCount">0</strong>
+          <div class="metric-value-row">
+            <strong id="pcCount">0</strong>
+            <span id="gridLensTraffic" class="metric-side">0 B/s</span>
+          </div>
         </article>
-        <article class="metric">
-          <span class="label">Runtimes</span>
+        <article class="metric" title="Successful Docker or Podman checks across PCs.">
+          <span class="label">Runtime APIs</span>
           <strong id="runtimesAvailable">0</strong>
         </article>
       </section>
@@ -62,7 +81,10 @@
           </div>
           <div id="scanResults" class="stack compact"></div>
           <details id="dimmedScanDetails" class="dimmed-details">
-            <summary><span id="dimmedScanSummary">Hidden candidates</span></summary>
+            <summary>
+              <span id="dimmedScanSummary">Hidden candidates</span>
+              <span class="summary-action" aria-hidden="true"></span>
+            </summary>
             <div id="dimmedScanResults" class="stack compact"></div>
           </details>
         </section>

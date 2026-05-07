@@ -15,11 +15,12 @@ import (
 )
 
 type Report struct {
-	GeneratedAt time.Time      `json:"generatedAt"`
-	ConfigPath  string         `json:"configPath,omitempty"`
-	Hub         HubInfo        `json:"hub"`
-	Targets     []TargetReport `json:"targets"`
-	Summary     Summary        `json:"summary"`
+	GeneratedAt       time.Time            `json:"generatedAt"`
+	ConfigPath        string               `json:"configPath,omitempty"`
+	Hub               HubInfo              `json:"hub"`
+	Targets           []TargetReport       `json:"targets"`
+	Summary           Summary              `json:"summary"`
+	CollectionTraffic network.TrafficUsage `json:"collectionTraffic"`
 }
 
 type HubInfo struct {
@@ -28,12 +29,13 @@ type HubInfo struct {
 }
 
 type Summary struct {
-	PCCount           int `json:"pcCount"`
-	TargetsScanned    int `json:"targetsScanned"`
-	RuntimesAvailable int `json:"runtimesAvailable"`
-	ContainersSeen    int `json:"containersSeen"`
-	NosanaHosts       int `json:"nosanaHosts"`
-	NosanaMatches     int `json:"nosanaMatches"`
+	PCCount           int                  `json:"pcCount"`
+	TargetsScanned    int                  `json:"targetsScanned"`
+	RuntimesAvailable int                  `json:"runtimesAvailable"`
+	ContainersSeen    int                  `json:"containersSeen"`
+	NosanaHosts       int                  `json:"nosanaHosts"`
+	NosanaMatches     int                  `json:"nosanaMatches"`
+	GridLensTraffic   network.TrafficUsage `json:"gridLensTraffic"`
 }
 
 type TargetReport struct {
@@ -65,6 +67,7 @@ type Options struct {
 
 func Detect(ctx context.Context, runner execx.Runner, cfg config.Config, opts Options) Report {
 	cfg.ApplyDefaults()
+	traffic := &trafficCounter{}
 	report := Report{
 		GeneratedAt: opts.Now.UTC(),
 		ConfigPath:  opts.ConfigPath,
@@ -96,12 +99,13 @@ func Detect(ctx context.Context, runner execx.Runner, cfg config.Config, opts Op
 				report.Targets[i+1] = cancelledTarget(pc)
 				return
 			}
-			report.Targets[i+1] = detectPC(ctx, runner, pc, cfg.DefaultContainerPatterns, opts.IncludeNested, opts.MaxConcurrentNested)
+			report.Targets[i+1] = detectPC(ctx, runner, pc, cfg.DefaultContainerPatterns, opts.IncludeNested, opts.MaxConcurrentNested, traffic)
 		}()
 	}
 	wg.Wait()
 
 	report.Summary = summarize(report.Targets)
+	report.CollectionTraffic = traffic.Usage()
 	return report
 }
 
@@ -116,7 +120,7 @@ func detectLocal(ctx context.Context, runner execx.Runner, matcher Matcher, incl
 	return target
 }
 
-func detectPC(ctx context.Context, runner execx.Runner, pc config.PC, defaults []string, includeNested bool, maxNested int) TargetReport {
+func detectPC(ctx context.Context, runner execx.Runner, pc config.PC, defaults []string, includeNested bool, maxNested int, traffic *trafficCounter) TargetReport {
 	target := TargetReport{
 		Name:      pc.Name,
 		Scope:     "configured",
@@ -139,9 +143,9 @@ func detectPC(ctx context.Context, runner execx.Runner, pc config.PC, defaults [
 		ExactNames: pc.ContainerNames,
 		Patterns:   append(append([]string{}, defaults...), pc.ContainerPatterns...),
 	}
-	target.HostName = detectRemoteHostname(ctx, runner, pc.SSHTarget)
+	target.HostName = detectRemoteHostname(ctx, runner, pc.SSHTarget, traffic)
 	for _, runtimeName := range runtimesForPC(pc) {
-		target.Runtimes = append(target.Runtimes, detectRemoteRuntime(ctx, runner, pc.SSHTarget, runtimeName, matcher, includeNested, maxNested))
+		target.Runtimes = append(target.Runtimes, detectRemoteRuntime(ctx, runner, pc.SSHTarget, runtimeName, matcher, includeNested, maxNested, traffic))
 	}
 	return target
 }
@@ -217,7 +221,7 @@ func detectLocalRuntime(ctx context.Context, runner execx.Runner, runtimeName st
 	return report
 }
 
-func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget string, runtimeName string, matcher Matcher, includeNested bool, maxNested int) RuntimeReport {
+func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget string, runtimeName string, matcher Matcher, includeNested bool, maxNested int, traffic *trafficCounter) RuntimeReport {
 	remoteCommand := remoteRuntimeCommand(runtimeName)
 	if remoteCommand == "" {
 		return RuntimeReport{Type: runtimeName, Available: false, Error: "unsupported runtime"}
@@ -225,6 +229,7 @@ func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget str
 
 	command := []string{"ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, remoteCommand}
 	result := runner.Run(ctx, command[0], command[1:]...)
+	traffic.addSSH(command, result)
 	report := RuntimeReport{Type: runtimeName, Available: result.OK(), Command: command}
 	if !result.OK() {
 		report.Error = resultError(result)
@@ -239,7 +244,7 @@ func detectRemoteRuntime(ctx context.Context, runner execx.Runner, sshTarget str
 	}
 
 	if runtimeName == "docker" && includeNested {
-		addRemoteNestedPodman(ctx, runner, sshTarget, containers, matcher, maxNested)
+		addRemoteNestedPodman(ctx, runner, sshTarget, containers, matcher, maxNested, traffic)
 		demoteRuntimeWrappers(containers)
 	}
 	sortContainers(containers)
@@ -258,9 +263,10 @@ func remoteRuntimeCommand(runtimeName string) string {
 	}
 }
 
-func detectRemoteHostname(ctx context.Context, runner execx.Runner, sshTarget string) string {
-	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, "hostname -s 2>/dev/null || hostname"}
-	result := runner.Run(ctx, "ssh", args...)
+func detectRemoteHostname(ctx context.Context, runner execx.Runner, sshTarget string, traffic *trafficCounter) string {
+	command := []string{"ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, "hostname -s 2>/dev/null || hostname"}
+	result := runner.Run(ctx, command[0], command[1:]...)
+	traffic.addSSH(command, result)
 	if !result.OK() {
 		return ""
 	}
@@ -299,7 +305,7 @@ func addNestedPodman(ctx context.Context, runner execx.Runner, source string, co
 	}
 }
 
-func addRemoteNestedPodman(ctx context.Context, runner execx.Runner, sshTarget string, containers []Container, matcher Matcher, maxNested int) {
+func addRemoteNestedPodman(ctx context.Context, runner execx.Runner, sshTarget string, containers []Container, matcher Matcher, maxNested int, traffic *trafficCounter) {
 	if maxNested <= 0 {
 		maxNested = 8
 	}
@@ -320,8 +326,9 @@ func addRemoteNestedPodman(ctx context.Context, runner execx.Runner, sshTarget s
 				return
 			}
 			remoteCommand := fmt.Sprintf("docker exec %s sh -lc 'command -v podman >/dev/null 2>&1 && podman ps --format json || true'", containers[i].ID)
-			args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, remoteCommand}
-			result := runner.Run(ctx, "ssh", args...)
+			command := []string{"ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", sshTarget, remoteCommand}
+			result := runner.Run(ctx, command[0], command[1:]...)
+			traffic.addSSH(command, result)
 			if !result.OK() || strings.TrimSpace(result.Stdout) == "" {
 				return
 			}
@@ -431,4 +438,34 @@ func resultError(result execx.Result) string {
 		return result.Err.Error()
 	}
 	return fmt.Sprintf("exit code %d", result.ExitCode)
+}
+
+type trafficCounter struct {
+	mu    sync.Mutex
+	total network.TrafficUsage
+}
+
+func (c *trafficCounter) addSSH(command []string, result execx.Result) {
+	if c == nil {
+		return
+	}
+	outbound := int64(len(strings.Join(command, " ")) + 8192)
+	inbound := int64(len(result.Stdout) + len(result.Stderr) + 8192)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.total.BytesOut += outbound
+	c.total.BytesIn += inbound
+	c.total.TotalBytes = c.total.BytesOut + c.total.BytesIn
+	c.total.SSHSessions++
+	c.total.Estimated = true
+}
+
+func (c *trafficCounter) Usage() network.TrafficUsage {
+	if c == nil {
+		return network.TrafficUsage{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.total
 }

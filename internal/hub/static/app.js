@@ -4,12 +4,14 @@ const state = {
   savingConfig: false,
   lastReport: null,
   config: null,
-  targetSort: localStorage.getItem("gridlens.targetSort") || "ip",
+  targetSort: storageGet("gridlens.targetSort") || "ip",
+  theme: storageGet("gridlens.theme") || "dark",
 };
 
 const els = {
   updatedAt: document.querySelector("#updatedAt"),
   hubIdentity: document.querySelector("#hubIdentity"),
+  themeBtn: document.querySelector("#themeBtn"),
   refreshBtn: document.querySelector("#refreshBtn"),
   scanBtn: document.querySelector("#scanBtn"),
   configBtn: document.querySelector("#configBtn"),
@@ -38,9 +40,11 @@ const els = {
   nosanaMatches: document.querySelector("#nosanaMatches"),
   containersSeen: document.querySelector("#containersSeen"),
   pcCount: document.querySelector("#pcCount"),
+  gridLensTraffic: document.querySelector("#gridLensTraffic"),
   runtimesAvailable: document.querySelector("#runtimesAvailable"),
 };
 
+els.themeBtn.addEventListener("click", () => toggleTheme());
 els.refreshBtn.addEventListener("click", () => refresh());
 els.scanBtn.addEventListener("click", () => scanLAN());
 els.configBtn.addEventListener("click", () => openConfig());
@@ -52,6 +56,7 @@ els.configForm.addEventListener("submit", (event) => {
   saveBulkConfig();
 });
 
+applyTheme(state.theme);
 refresh();
 updateSortButtons();
 setInterval(refresh, 10000);
@@ -173,7 +178,7 @@ function renderConfig(response) {
   els.configuredPCs.innerHTML = pcs.map((pc) => `
     <article class="candidate">
       <strong>${escapeHTML(pc.name)}</strong>
-      <div class="meta">${escapeHTML([pc.address, pc.sshTarget].filter(Boolean).join(" | "))}</div>
+      <div class="meta">${escapeHTML(pcConfigMeta(pc))}</div>
       <div class="meta">containers: ${escapeHTML((pc.containerNames || []).join(", ") || "default patterns")}</div>
       <div class="meta">patterns: ${escapeHTML((pc.containerPatterns || []).join(", ") || (cfg.defaultContainerPatterns || []).join(", "))}</div>
     </article>
@@ -185,6 +190,8 @@ function renderReport(report) {
   els.nosanaMatches.textContent = summary.nosanaHosts ?? summary.nosanaMatches ?? 0;
   els.containersSeen.textContent = summary.containersSeen ?? 0;
   els.pcCount.textContent = summary.pcCount ?? configuredTargets(report).length;
+  els.gridLensTraffic.textContent = formatTrafficRate(summary.gridLensTraffic);
+  els.gridLensTraffic.title = trafficTitle(summary.gridLensTraffic);
   els.runtimesAvailable.textContent = summary.runtimesAvailable ?? 0;
   els.updatedAt.textContent = `Updated ${formatTime(report.generatedAt)}`;
   els.hubIdentity.textContent = hubIdentityText(report.hub);
@@ -304,9 +311,22 @@ function renderScan(report) {
 
 function setTargetSort(sort) {
   state.targetSort = sort;
-  localStorage.setItem("gridlens.targetSort", sort);
+  storageSet("gridlens.targetSort", sort);
   updateSortButtons();
   if (state.lastReport) renderReport(state.lastReport);
+}
+
+function toggleTheme() {
+  applyTheme(state.theme === "dark" ? "light" : "dark");
+}
+
+function applyTheme(theme) {
+  state.theme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = state.theme;
+  document.documentElement.style.colorScheme = state.theme;
+  storageSet("gridlens.theme", state.theme);
+  els.themeBtn.textContent = state.theme === "dark" ? "Light" : "Dark";
+  els.themeBtn.title = state.theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
 }
 
 function updateSortButtons() {
@@ -350,11 +370,24 @@ function visibleRuntimeReports(target) {
 
 function pcMeta(target) {
   const parts = [];
-  if (target.hostName && target.hostName !== target.name) parts.push(`config ${target.name}`);
-  if (target.address) parts.push(`IP ${target.address}`);
-  if (target.sshTarget) parts.push(`SSH ${target.sshTarget}`);
+  if (target.address) parts.push(target.address);
+  if (target.sshTarget) parts.push(sshLoginSummary(target.sshTarget));
+  if (!target.sshTarget && target.scope === "configured") parts.push("no SSH login");
   if (!parts.length) parts.push(target.scope || "target");
   return parts.join(" | ");
+}
+
+function pcConfigMeta(pc) {
+  const parts = [];
+  if (pc.address) parts.push(pc.address);
+  if (pc.sshTarget) parts.push(sshLoginSummary(pc.sshTarget));
+  if (!pc.sshTarget) parts.push("no SSH login");
+  return parts.join(" | ");
+}
+
+function sshLoginSummary(sshTarget) {
+  const login = String(sshTarget || "").split("@")[0].trim();
+  return `SSH ${login || "login"}/key`;
 }
 
 function targetDisplayName(target) {
@@ -444,6 +477,45 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function formatTrafficRate(traffic) {
+  const bytesPerSecond = Number(traffic?.bytesPerSecond || 0);
+  return `${formatBytes(bytesPerSecond)}/s`;
+}
+
+function trafficTitle(traffic) {
+  const total = Number(traffic?.totalBytes || 0);
+  const windowSeconds = Number(traffic?.windowSeconds || 60);
+  const sessions = Number(traffic?.sshSessions || 0);
+  const checks = Number(traffic?.portChecks || 0);
+  const parts = [`GridLens estimated traffic: ${formatBytes(total)} over ${windowSeconds}s`];
+  if (sessions) parts.push(`${sessions} SSH sessions`);
+  if (checks) parts.push(`${checks} LAN port checks`);
+  return parts.join(" | ");
+}
+
+function formatBytes(value) {
+  const bytes = Math.max(0, Number(value) || 0);
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  const kib = bytes / 1024;
+  if (kib < 1024) return `${kib.toFixed(kib >= 10 ? 0 : 1)} KB`;
+  const mib = kib / 1024;
+  return `${mib.toFixed(mib >= 10 ? 0 : 1)} MB`;
+}
+
+function storageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (_) {
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_) {}
 }
 
 function escapeHTML(value) {

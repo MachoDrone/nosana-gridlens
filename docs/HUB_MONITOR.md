@@ -52,6 +52,9 @@ and 8 Nosana hosts, or 80 PCs and 200 Nosana hosts. Runtime wrapper containers
 are shown as containers but should not inflate the Nosana host count when nested
 Nosana containers are found.
 
+`Runtime APIs` counts successful Docker or Podman API checks across the Hub and
+configured PCs. It is not a Nosana host count.
+
 PC rows show both configured PC name and IP address. The operator can sort PCs
 by name or IP address, and the browser persists that sort choice. When SSH is
 configured, GridLens reads the remote hostname and uses it as the visible PC
@@ -67,6 +70,16 @@ Hub PC is collapsed when it is not itself a Nosana host. If it is a Nosana host,
 it is included in the normal sorted PC list.
 
 The Hub PC name and local IP address are displayed under the update timestamp.
+
+The PC metric includes estimated GridLens network traffic averaged over the
+last 60 seconds. SSH byte counts are estimated because the encrypted SSH
+handshake and transport are owned by the local `ssh` binary, not the Go process.
+The estimate includes a conservative per-SSH-session overhead plus command
+payload, command output, and bounded LAN port checks.
+
+Dark mode is the default monitor theme. The selected theme is stored in the
+browser before the stylesheet loads so page refreshes do not flash the opposite
+theme first.
 
 Current limits:
 
